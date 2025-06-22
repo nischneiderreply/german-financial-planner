@@ -22,7 +22,7 @@ let budgetData = {
 let scenarios = [
     {
         id: 'A',
-        name: 'Basis',
+        name: 'A',
         color: '#3498db',
         inputs: {},
         yearlyData: [],
@@ -36,6 +36,7 @@ let userIsTyping = false; // Track if user is actively typing
 let recalculationTimeout = null;
 let currentChartMode = 'comparison'; // 'comparison' or 'contributions'
 let selectedScenariosForChart = new Set(['A']); // Track which scenarios to show on chart
+let selectedContributionsScenario = 'A'; // Track selected scenario for contributions chart
 
 // Scenario colors
 const scenarioColors = {
@@ -68,8 +69,11 @@ document.addEventListener('DOMContentLoaded', function() {
     calculateBudget();
     calculateTaxes();
     
-    // Initialize scenario checkboxes
+    // Initialize scenario checkboxes and dropdowns
     updateScenarioCheckboxes();
+    updateContributionsScenarioDropdown();
+    setupContributionsScenarioSelector();
+    updateScenarioCheckboxVisibility();
     
     // Show sync indicator on page load
     setTimeout(() => {
@@ -89,6 +93,7 @@ function setupChartToggleListeners() {
             contributionsGainsBtn.classList.remove('active');
             currentChartMode = 'comparison';
             updateMainChart();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -99,6 +104,7 @@ function setupChartToggleListeners() {
             scenarioComparisonBtn.classList.remove('active');
             currentChartMode = 'contributions';
             updateContributionsGainsChart();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -445,7 +451,7 @@ function updateScenarioCheckboxes() {
         
         checkboxItem.innerHTML = `
             <div class="scenario-checkbox"></div>
-            <span>Szenario ${scenario.name}</span>
+            <span>Szenario ${scenario.id}</span>
         `;
         
         checkboxItem.addEventListener('click', function() {
@@ -456,11 +462,85 @@ function updateScenarioCheckboxes() {
                 selectedScenariosForChart.add(scenario.id);
                 this.classList.add('checked');
             }
+            
+            // Only update comparison chart since contributions has its own dropdown
             updateMainChart();
         });
         
         checkboxContainer.appendChild(checkboxItem);
     });
+}
+
+function updateScenarioCheckboxVisibility() {
+    const checkboxContainer = document.getElementById('scenarioCheckboxes');
+    const contributionsSelector = document.getElementById('contributionsScenarioSelector');
+    if (!checkboxContainer || !contributionsSelector) return;
+    
+    // Show checkboxes only in accumulation phase (not in scenario comparison phase)
+    const isAccumulationPhase = currentPhase === 'accumulation';
+    
+    if (isAccumulationPhase) {
+        // Show appropriate selector based on chart mode
+        if (currentChartMode === 'comparison') {
+            checkboxContainer.style.display = 'flex';
+            contributionsSelector.style.display = 'none';
+        } else if (currentChartMode === 'contributions') {
+            checkboxContainer.style.display = 'none';
+            contributionsSelector.style.display = 'block';
+        }
+    } else {
+        // Hide both in other phases
+        checkboxContainer.style.display = 'none';
+        contributionsSelector.style.display = 'none';
+    }
+}
+
+function updateContributionsScenarioDropdown() {
+    const dropdown = document.getElementById('contributionsScenarioDropdown');
+    if (!dropdown) return;
+    
+    dropdown.innerHTML = '';
+    
+    scenarios.forEach(scenario => {
+        const option = document.createElement('option');
+        option.value = scenario.id;
+        option.textContent = `Szenario ${scenario.id}`;
+        option.style.color = scenario.color;
+        option.style.fontWeight = 'bold';
+        if (scenario.id === selectedContributionsScenario) {
+            option.selected = true;
+        }
+        dropdown.appendChild(option);
+    });
+    
+    // Update dropdown color to match currently selected scenario
+    const selectedScenario = scenarios.find(s => s.id === selectedContributionsScenario);
+    if (selectedScenario) {
+        dropdown.style.color = selectedScenario.color;
+    }
+}
+
+function setupContributionsScenarioSelector() {
+    const dropdown = document.getElementById('contributionsScenarioDropdown');
+    if (!dropdown) return;
+    
+    dropdown.addEventListener('change', function() {
+        selectedContributionsScenario = this.value;
+        
+        // Update dropdown color to match selected scenario
+        const selectedScenario = scenarios.find(s => s.id === this.value);
+        if (selectedScenario) {
+            this.style.color = selectedScenario.color;
+        }
+        
+        updateContributionsGainsChart();
+    });
+    
+    // Set initial color
+    const initialScenario = scenarios.find(s => s.id === selectedContributionsScenario);
+    if (initialScenario) {
+        dropdown.style.color = initialScenario.color;
+    }
 }
 
 // Get the currently active scenario object
@@ -623,8 +703,9 @@ function addNewScenario() {
     switchToScenario(newScenarioId);
     // Auto-select new scenario for chart display
     selectedScenariosForChart.add(newScenarioId);
-    // Update scenario checkboxes
+    // Update scenario checkboxes and dropdown
     updateScenarioCheckboxes();
+    updateContributionsScenarioDropdown();
     // Auto-save the new scenario
     setTimeout(() => saveIndividualAnsparphaseScenario(newScenarioId), 2000);
 }
@@ -638,7 +719,7 @@ function createScenarioTab(scenario) {
     const tab = document.createElement('button');
     tab.className = 'scenario-tab';
     tab.dataset.scenario = scenario.id;
-    tab.innerHTML = `📊 Szenario ${scenario.name}`;
+    tab.innerHTML = `📊 Szenario ${scenario.id}`;
     
     // Insert before the add button
     tabsContainer.insertBefore(tab, addBtn);
@@ -694,7 +775,7 @@ function createScenarioPanel(scenario) {
     
     panel.innerHTML = `
         <div class="scenario-panel-header">
-            <h3 class="scenario-panel-title">📊 Szenario ${scenario.name}</h3>
+            <h3 class="scenario-panel-title">📊 Szenario ${scenario.id}</h3>
             <div class="scenario-actions">
                 <button class="scenario-action-btn" onclick="renameScenario('${scenario.id}')" title="Szenario umbenennen">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -922,7 +1003,7 @@ function updateComparisonChart() {
 
         // Add nominal dataset
         datasets.push({
-            label: `Szenario ${scenario.name} (Nominal)`,
+            label: `Szenario ${scenario.id} (Nominal)`,
             data: nominalData,
             borderColor: scenario.color,
             backgroundColor: nominalGradient,
@@ -939,7 +1020,7 @@ function updateComparisonChart() {
 
         // Add real dataset (dashed line)
         datasets.push({
-            label: `Szenario ${scenario.name} (Real)`,
+            label: `Szenario ${scenario.id} (Real)`,
             data: realData,
             borderColor: scenario.color,
             backgroundColor: 'transparent',
@@ -1162,30 +1243,31 @@ function updateContributionsGainsChart() {
         chart.destroy();
     }
 
-    // Use the currently active scenario for contributions vs gains view
-    const currentScenario = scenarios.find(s => s.id === activeScenario);
-    if (!currentScenario || !currentScenario.yearlyData || currentScenario.yearlyData.length === 0) {
+    // Use the selected scenario from the dropdown
+    const displayScenario = scenarios.find(s => s.id === selectedContributionsScenario);
+    
+    if (!displayScenario || !displayScenario.yearlyData || displayScenario.yearlyData.length === 0) {
         return;
     }
 
-    const years = currentScenario.yearlyData.map(d => d.year);
+    const years = displayScenario.yearlyData.map(d => d.year);
     
     // Calculate contributions (cumulative invested capital)
-    const contributionsData = currentScenario.yearlyData.map(d => d.totalInvested);
+    const contributionsData = displayScenario.yearlyData.map(d => d.totalInvested);
     
     // Calculate gains (total capital minus invested capital)
-    const gainsData = currentScenario.yearlyData.map(d => Math.max(0, d.capital - d.totalInvested));
+    const gainsData = displayScenario.yearlyData.map(d => Math.max(0, d.capital - d.totalInvested));
     
     // Calculate real value line
-    const realValueData = currentScenario.yearlyData.map(d => d.realCapital);
+    const realValueData = displayScenario.yearlyData.map(d => d.realCapital);
 
-    // Create gradients for the stacked areas
+    // Create gradients for the stacked areas - use consistent colors regardless of scenario
     const contributionsGradient = ctx.createLinearGradient(0, 0, 0, 400);
-    contributionsGradient.addColorStop(0, '#3498db80'); // Blue with transparency
+    contributionsGradient.addColorStop(0, '#3498db80'); // Always blue for contributions
     contributionsGradient.addColorStop(1, '#3498db40');
 
     const gainsGradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gainsGradient.addColorStop(0, '#27ae6080'); // Green with transparency
+    gainsGradient.addColorStop(0, '#27ae6080'); // Always green for gains
     gainsGradient.addColorStop(1, '#27ae6040');
 
     chart = new Chart(ctx, {
@@ -1196,7 +1278,7 @@ function updateContributionsGainsChart() {
                 {
                     label: 'Eingezahltes Kapital',
                     data: contributionsData,
-                    borderColor: '#3498db',
+                    borderColor: '#3498db', // Always blue for contributions
                     backgroundColor: contributionsGradient,
                     fill: 'origin',
                     tension: 0.4,
@@ -1207,7 +1289,7 @@ function updateContributionsGainsChart() {
                 {
                     label: 'Kursgewinne',
                     data: gainsData.map((gain, index) => gain + contributionsData[index]),
-                    borderColor: '#27ae60',
+                    borderColor: '#27ae60', // Always green for gains
                     backgroundColor: gainsGradient,
                     fill: '-1', // Fill to previous dataset
                     tension: 0.4,
@@ -1243,7 +1325,7 @@ function updateContributionsGainsChart() {
             plugins: {
                 title: {
                     display: true,
-                    text: `Vermögensentwicklung: Einzahlungen vs. Kursgewinne (Szenario ${currentScenario.name})`,
+                    text: `Vermögensentwicklung: Einzahlungen vs. Kursgewinne (Szenario ${displayScenario.id})`,
                     font: {
                         size: 18,
                         weight: 'bold',
@@ -1296,7 +1378,7 @@ function updateContributionsGainsChart() {
                         },
                         beforeBody: function(context) {
                             const year = parseInt(context[0].label);
-                            const yearData = currentScenario.yearlyData[year];
+                            const yearData = displayScenario.yearlyData[year];
                             if (yearData) {
                                 const totalCapital = yearData.capital;
                                 const contributions = yearData.totalInvested;
@@ -1320,7 +1402,7 @@ function updateContributionsGainsChart() {
                             if (datasetLabel === 'Kursgewinne') {
                                 // Show only the gains portion for the gains dataset
                                 const year = parseInt(context.label);
-                                const yearData = currentScenario.yearlyData[year];
+                                const yearData = displayScenario.yearlyData[year];
                                 const gains = yearData ? Math.max(0, yearData.capital - yearData.totalInvested) : 0;
                                 return datasetLabel + ': €' + gains.toLocaleString('de-DE', { 
                                     minimumFractionDigits: 2, 
@@ -1778,13 +1860,19 @@ function removeScenario(scenarioId) {
         if (tab) tab.remove();
         if (panel) panel.remove();
         
-        // If the deleted scenario was active, switch to scenario A
+                // If the deleted scenario was active, switch to scenario A
         if (activeScenario === scenarioId) {
             switchToScenario('A');
         }
         
-        // Update scenario checkboxes and recalculate
+        // If the deleted scenario was selected for contributions chart, switch to A
+        if (selectedContributionsScenario === scenarioId) {
+            selectedContributionsScenario = 'A';
+        }
+        
+        // Update scenario checkboxes, dropdown, and recalculate
         updateScenarioCheckboxes();
+        updateContributionsScenarioDropdown();
         debouncedRecalculateAll();
     }
 }
@@ -1820,19 +1908,20 @@ function renameScenario(scenarioId) {
     // Update panel title
     const panelTitle = document.querySelector(`[data-scenario="${scenarioId}"] .scenario-panel-title`);
     if (panelTitle) {
-        panelTitle.textContent = `📊 Szenario ${scenario.name}`;
+        panelTitle.textContent = `📊 Szenario ${scenario.id}`;
     }
     
     // Update tab name
     const tab = document.querySelector(`[data-scenario="${scenarioId}"].scenario-tab`);
     if (tab) {
-        tab.innerHTML = `📊 Szenario ${scenario.name}`;
+        tab.innerHTML = `📊 Szenario ${scenario.id}`;
     }
     
     // Update all UI elements that display scenario names
     updateScenarioResults();
     updateScenarioSelector();
     updateScenarioCheckboxes();
+    updateContributionsScenarioDropdown();
     
     // Update the currently active chart with new names
     if (currentChartMode === 'comparison') {
@@ -2581,6 +2670,7 @@ function setupPhaseToggle() {
             setActivePhase(budgetBtn);
             showSingleSection(budgetSection);
             calculateBudget();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -2590,6 +2680,7 @@ function setupPhaseToggle() {
             setActivePhase(taxCalculatorBtn);
             showSingleSection(taxCalculatorSection);
             calculateTaxes();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -2598,6 +2689,7 @@ function setupPhaseToggle() {
             currentPhase = 'accumulation';
             setActivePhase(accumulationBtn);
             showAccumulationSections();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -2607,6 +2699,7 @@ function setupPhaseToggle() {
             setActivePhase(withdrawalBtn);
             showSingleSection(withdrawalSection);
             calculateWithdrawal();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -2619,6 +2712,7 @@ function setupPhaseToggle() {
             recalculateAll();
             // Reload profiles when scenario comparison section is shown
             loadComparisonProfiles();
+            updateScenarioCheckboxVisibility();
         });
     }
 
@@ -6526,6 +6620,9 @@ function updateComparisonResultsGrid() {
             resultsGrid.appendChild(card);
         }
     });
+    
+    // Update performance summary after results are updated
+    updatePerformanceSummary();
 }
 
 // Setup comparison chart view toggle functionality
@@ -9435,4 +9532,257 @@ function getParameterCssClass(value, param, allScenarios) {
     }
     
     return '';
+}
+
+// Update performance summary cards with dynamic data based on actual scenario results
+function updatePerformanceSummary() {
+    const container = document.getElementById('performanceCardsContainer');
+    if (!container) return;
+    
+    // Get scenarios with calculated results
+    const scenariosWithResults = comparisonScenarios.filter(scenario => 
+        scenario.results && 
+        scenario.results.finalCapital && 
+        scenario.results.monthlyPension
+    );
+    
+    // Clear existing content
+    container.innerHTML = '';
+    
+    if (scenariosWithResults.length === 0) {
+        // Show empty state
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📊</div>
+                <h4>Keine Berechnungen verfügbar</h4>
+                <p>Führen Sie Berechnungen für mindestens ein Szenario durch, um eine Zusammenfassung zu erhalten.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Find best performing scenario (highest final capital)
+    const bestScenario = scenariosWithResults.reduce((best, current) => 
+        current.results.finalCapital > best.results.finalCapital ? current : best
+    );
+    
+    // Find most balanced scenario (best risk/return ratio)
+    const balancedScenario = findMostBalancedScenario(scenariosWithResults);
+    
+    // Create performance cards
+    const cards = [];
+    
+    // Best performing card
+    if (bestScenario) {
+        cards.push(createBestPerformanceCard(bestScenario, scenariosWithResults));
+    }
+    
+    // Most balanced card (only if different from best)
+    if (balancedScenario && balancedScenario.id !== bestScenario.id) {
+        cards.push(createBalancedScenarioCard(balancedScenario, scenariosWithResults));
+    }
+    
+    // Overview/insights card for multiple scenarios
+    if (scenariosWithResults.length > 1) {
+        cards.push(createInsightsCard(scenariosWithResults));
+    }
+    
+    // Add cards to container
+    cards.forEach(card => container.appendChild(card));
+}
+
+// Find the most balanced scenario based on risk vs return analysis
+function findMostBalancedScenario(scenarios) {
+    if (scenarios.length <= 1) return scenarios[0];
+    
+    // Calculate balance score for each scenario
+    const scoredScenarios = scenarios.map(scenario => {
+        const annualReturn = parseFloat(getComparisonScenarioValue(scenario.id, 'accumulation.annualReturn') || '0');
+        const inflationRate = parseFloat(getComparisonScenarioValue(scenario.id, 'accumulation.inflationRate') || '2');
+        const duration = parseInt(getComparisonScenarioValue(scenario.id, 'accumulation.duration') || '25');
+        const finalCapital = scenario.results.finalCapital;
+        const monthlyPension = scenario.results.monthlyPension;
+        
+        // Calculate real return adjusted for inflation
+        const realReturn = annualReturn - inflationRate;
+        
+        // Balance score: considers return sustainability and risk
+        // Higher real return is good, but extreme values get penalized
+        const returnScore = Math.min(realReturn / 8, 1); // Normalize to max 8% real return
+        const stabilityScore = Math.max(0, 1 - Math.abs(annualReturn - 6) / 10); // Penalty for being too far from 6%
+        const durationScore = Math.min(duration / 30, 1); // Longer duration is more balanced
+        
+        const balanceScore = (returnScore * 0.4 + stabilityScore * 0.4 + durationScore * 0.2);
+        
+        return { scenario, balanceScore, realReturn, finalCapital, monthlyPension };
+    });
+    
+    // Return scenario with highest balance score
+    return scoredScenarios.reduce((best, current) => 
+        current.balanceScore > best.balanceScore ? current : best
+    ).scenario;
+}
+
+// Create best performance card
+function createBestPerformanceCard(scenario, allScenarios) {
+    const card = document.createElement('div');
+    card.className = 'performance-card winner-card';
+    
+    const finalCapital = scenario.results.finalCapital;
+    const monthlyPension = scenario.results.monthlyPension;
+    const realPurchasingPower = scenario.results.realPurchasingPower;
+    const totalReturn = scenario.results.effectiveReturn;
+    
+    // Calculate advantage over other scenarios
+    const otherScenarios = allScenarios.filter(s => s.id !== scenario.id);
+    const avgCapital = otherScenarios.reduce((sum, s) => sum + s.results.finalCapital, 0) / otherScenarios.length;
+    const advantage = ((finalCapital - avgCapital) / avgCapital * 100);
+    
+    card.innerHTML = `
+        <div class="card-icon">🏆</div>
+        <div class="card-content">
+            <h4 class="card-title">Bestes Szenario</h4>
+            <div class="card-subtitle">${scenario.name}</div>
+            
+            <div class="key-metrics">
+                <div class="metric">
+                    <span class="metric-label">Endkapital</span>
+                    <span class="metric-value">${formatCurrency(finalCapital)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Monatliche Rente</span>
+                    <span class="metric-value">${formatCurrency(monthlyPension)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Reale Kaufkraft</span>
+                    <span class="metric-value">${formatCurrency(realPurchasingPower)}</span>
+                </div>
+            </div>
+            
+            <div class="advantage-section">
+                <div class="advantage-label">Vorteil gegenüber anderen Szenarien:</div>
+                <div class="advantage-value ${advantage > 0 ? 'positive' : 'neutral'}">
+                    ${advantage > 0 ? '+' : ''}${advantage.toFixed(1)}% mehr Kapital
+                </div>
+                <div class="advantage-description">
+                    Gesamtrendite: <strong>${totalReturn.toFixed(1)}%</strong>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return card;
+}
+
+// Create balanced scenario card
+function createBalancedScenarioCard(scenario, allScenarios) {
+    const card = document.createElement('div');
+    card.className = 'performance-card balanced-card';
+    
+    const finalCapital = scenario.results.finalCapital;
+    const monthlyPension = scenario.results.monthlyPension;
+    const annualReturn = parseFloat(getComparisonScenarioValue(scenario.id, 'accumulation.annualReturn') || '0');
+    const inflationRate = parseFloat(getComparisonScenarioValue(scenario.id, 'accumulation.inflationRate') || '2');
+    const realReturn = annualReturn - inflationRate;
+    
+    card.innerHTML = `
+        <div class="card-icon">⚖️</div>
+        <div class="card-content">
+            <h4 class="card-title">Ausgewogenste Option</h4>
+            <div class="card-subtitle">${scenario.name}</div>
+            
+            <div class="key-metrics">
+                <div class="metric">
+                    <span class="metric-label">Endkapital</span>
+                    <span class="metric-value">${formatCurrency(finalCapital)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Monatliche Rente</span>
+                    <span class="metric-value">${formatCurrency(monthlyPension)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Reale Rendite</span>
+                    <span class="metric-value">${realReturn.toFixed(1)}%</span>
+                </div>
+            </div>
+            
+            <div class="balance-highlights">
+                <div class="highlight-item">
+                    <span class="highlight-icon">🛡️</span>
+                    <span class="highlight-text">Konservative Anlagestrategie</span>
+                </div>
+                <div class="highlight-item">
+                    <span class="highlight-icon">📈</span>
+                    <span class="highlight-text">Nachhaltige Renditeerwartung</span>
+                </div>
+                <div class="highlight-item">
+                    <span class="highlight-icon">💰</span>
+                    <span class="highlight-text">Solide Altersvorsorge</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return card;
+}
+
+// Create insights card for multiple scenarios
+function createInsightsCard(scenarios) {
+    const card = document.createElement('div');
+    card.className = 'performance-card insights-card';
+    
+    // Calculate aggregated insights
+    const capitals = scenarios.map(s => s.results.finalCapital);
+    const pensions = scenarios.map(s => s.results.monthlyPension);
+    const returns = scenarios.map(s => s.results.effectiveReturn);
+    
+    const avgCapital = capitals.reduce((a, b) => a + b, 0) / capitals.length;
+    const minCapital = Math.min(...capitals);
+    const maxCapital = Math.max(...capitals);
+    
+    const avgPension = pensions.reduce((a, b) => a + b, 0) / pensions.length;
+    const minPension = Math.min(...pensions);
+    const maxPension = Math.max(...pensions);
+    
+    const capitalRange = ((maxCapital - minCapital) / avgCapital * 100);
+    
+    card.innerHTML = `
+        <div class="card-icon">💡</div>
+        <div class="card-content">
+            <h4 class="card-title">Szenario-Insights</h4>
+            <div class="card-subtitle">${scenarios.length} Szenarien analysiert</div>
+            
+            <div class="insights-grid">
+                <div class="insight-item">
+                    <div class="insight-label">Durchschnittliches Endkapital</div>
+                    <div class="insight-value">${formatCurrency(avgCapital)}</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-label">Spannweite</div>
+                    <div class="insight-value">${formatCurrency(minCapital)} - ${formatCurrency(maxCapital)}</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-label">Durchschnittliche Rente</div>
+                    <div class="insight-value">${formatCurrency(avgPension)}/Monat</div>
+                </div>
+                <div class="insight-item">
+                    <div class="insight-label">Rentenspanne</div>
+                    <div class="insight-value">${formatCurrency(minPension)} - ${formatCurrency(maxPension)}</div>
+                </div>
+            </div>
+            
+            <div class="insights-summary">
+                <div class="summary-label">Variabilität:</div>
+                <div class="summary-value ${capitalRange > 50 ? 'warning' : 'positive'}">
+                    ${capitalRange.toFixed(1)}% Unterschied zwischen Szenarien
+                </div>
+                ${capitalRange > 50 ? 
+                    '<div class="summary-note">⚠️ Hohe Variabilität - Szenarioauswahl kritisch</div>' :
+                    '<div class="summary-note">✅ Moderate Variabilität - Robuste Planung möglich</div>'
+                }
+            </div>
+        </div>
+    `;
+    
+    return card;
 }
