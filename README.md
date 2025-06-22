@@ -10,9 +10,58 @@
 
 *A sophisticated web application for complete German financial planning - from salary calculation and budgeting to ETF investment modeling and retirement planning.*
 
-[🚀 Live Demo](#getting-started) • [📊 Features](#features) • [🇩🇪 German Tax Compliance](#german-tax-compliance) • [📖 Documentation](#documentation)
+[🚀 Live Demo](https://Nicolas2912.github.io/german-financial-planner/)
 
 </div>
+
+---
+
+## 📋 Table of Contents
+
+<details>
+<summary><strong>🔍 Click to expand/collapse</strong></summary>
+
+- [🌟 Overview](#-overview)
+  - [🔄 Integrated Financial Journey](#-integrated-financial-journey)
+  - [🎯 What Makes This Special](#-what-makes-this-special)
+- [✨ Connected Features & Data Flow](#-connected-features--data-flow)
+  - [💼 Phase 1: German Tax & Salary Calculator](#-phase-1-german-tax--salary-calculator--feeds-budget-planning)
+  - [💰 Phase 2: Budget Planning & Management](#-phase-2-budget-planning--management--determines-investment-capacity)
+  - [📈 Phase 3: ETF Investment Planning](#-phase-3-etf-investment-planning--builds-retirement-capital)
+  - [🏖️ Phase 4: Retirement Planning](#️-phase-4-retirement-planning--completes-the-journey)
+  - [🔍 Phase 5: Advanced Scenario Comparison](#-phase-5-advanced-scenario-comparison--optimizes-your-strategy)
+- [🇩🇪 German Tax Compliance](#-german-tax-compliance)
+  - [2025 Tax Implementation](#2025-tax-implementation)
+  - [ETF Taxation Features](#etf-taxation-features)
+- [🚀 Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+  - [📁 Project Structure](#-project-structure)
+- [📊 Connected Workflow Guide](#-connected-workflow-guide)
+  - [🔄 The Complete Financial Journey](#-the-complete-financial-journey)
+  - [📝 Phase 1: Discover Your True Earning Power](#-phase-1-discover-your-true-earning-power)
+  - [💰 Phase 2: Understand Your Financial Capacity](#-phase-2-understand-your-financial-capacity-uses-phase-1-data)
+  - [📈 Phase 3: Build Your Investment Strategy](#-phase-3-build-your-investment-strategy-uses-phase-1--2-data)
+  - [🏖️ Phase 4: Plan Your Retirement](#️-phase-4-plan-your-retirement-uses-all-previous-data)
+  - [🔍 Phase 5: Compare & Optimize](#-phase-5-compare--optimize-analyzes-complete-journey)
+  - [💡 Key Integration Points](#-key-integration-points)
+- [🛠️ Technical Details](#️-technical-details)
+  - [Built With](#built-with)
+  - [Key Technical Features](#key-technical-features)
+  - [Performance Optimizations](#performance-optimizations)
+- [📖 Documentation](#-documentation)
+  - [Core Documentation](#core-documentation)
+  - [Development Resources](#development-resources)
+- [🔧 Customization](#-customization)
+  - [Adding New Scenarios](#adding-new-scenarios)
+  - [Extending Tax Calculations](#extending-tax-calculations)
+- [🤝 Contributing](#-contributing)
+  - [Development Guidelines](#development-guidelines)
+- [📄 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
+- [📞 Support](#-support)
+
+</details>
 
 ---
 
@@ -36,7 +85,7 @@ Each phase automatically transfers relevant data to the next, creating a cohesiv
 - **🔄 Complete Lifecycle**: From salary calculation to retirement planning in one integrated tool
 - **📊 Advanced Visualizations**: Interactive charts with Chart.js for comprehensive financial analysis
 - **💾 Data Persistence**: Profile management and scenario comparisons with local storage
-- **📱 Mobile Responsive**: Works seamlessly on desktop and mobile devices
+
 
 ---
 
@@ -206,7 +255,6 @@ This application is designed as an **integrated workflow** where each phase buil
 - **German Number Formatting**: Proper comma decimal separators
 - **Real-time Calculations**: Instant feedback with debounced updates
 - **Mathematical Precision**: Newton-Raphson iteration for exact calculations
-- **Responsive Design**: Mobile-first CSS with flexbox/grid layouts
 - **Error Handling**: Comprehensive input validation and error recovery
 
 ### Performance Optimizations
@@ -273,7 +321,6 @@ We welcome contributions! Here's how you can help:
 ### Development Guidelines
 - Follow German financial regulations and tax law
 - Maintain mathematical precision in calculations
-- Ensure mobile responsiveness
 - Include comprehensive documentation
 - Test with various German tax scenarios
 
@@ -296,16 +343,8 @@ you may not use this file except in compliance with the License.
 
 - **German Federal Ministry of Finance** for official tax rate publications
 - **Chart.js Community** for excellent visualization capabilities
-- **MDN Web Docs** for comprehensive web standards documentation
-- **German ETF Community** for taxation rule clarifications
-
----
-
-## 📞 Support
-
-- 📧 **Issues**: [GitHub Issues](https://github.com/yourusername/german-financial-planner/issues)
-- 📖 **Documentation**: [Project Wiki](https://github.com/yourusername/german-financial-planner/wiki)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/yourusername/german-financial-planner/discussions)
+- **[Finanzfluss](https://finanzfluss.de)** for the initial inspiration and for providing high-quality, free financial calculators accessible to everyone
+- **[Cursor](https://cursor.com)** for making the development process 10x more efficient 🚀
 
 ---
 
