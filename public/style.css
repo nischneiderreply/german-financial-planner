@@ -3043,7 +3043,7 @@ body * {
 
 .metric-label {
     display: block;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     color: #7f8c8d;
     margin-bottom: 6px;
     font-weight: 600;
@@ -3053,7 +3053,7 @@ body * {
 
 .metric-value {
     display: block;
-    font-size: 1rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: #2c3e50;
 }
@@ -4575,7 +4575,7 @@ body * {
 
 .metric-label {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: #7f8c8d;
     margin-bottom: 4px;
     font-weight: 600;
@@ -4586,7 +4586,7 @@ body * {
 
 .metric-value {
     display: block;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: #2c3e50;
     line-height: 1.2;

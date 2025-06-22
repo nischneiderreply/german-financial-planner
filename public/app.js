@@ -16,8 +16,6 @@ let budgetData = {
     periods: { income: 'monthly', fixed: 'monthly', variable: 'monthly' }
 };
 
-
-
 // Scenario Management
 let scenarios = [
     {
@@ -45,8 +43,6 @@ const scenarioColors = {
     'C': '#e74c3c',
     'D': '#f39c12'
 };
-
-
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -395,10 +391,6 @@ function updateScenarioSliderValue(sliderId, scenarioId) {
     }
 }
 
-
-
-
-
 function debouncedRecalculateAll() {
     if (recalculationTimeout) {
         clearTimeout(recalculationTimeout);
@@ -710,8 +702,6 @@ function addNewScenario() {
     setTimeout(() => saveIndividualAnsparphaseScenario(newScenarioId), 2000);
 }
 
-
-
 function createScenarioTab(scenario) {
     const tabsContainer = document.getElementById('scenarioTabs');
     const addBtn = document.getElementById('addScenarioBtn');
@@ -751,6 +741,68 @@ function switchToScenario(scenarioId) {
     if (currentChartMode === 'contributions') {
         updateContributionsGainsChart();
     }
+}
+
+// Centralized function for displaying improved chart error messages
+function displayChartErrorMessage(canvas, ctx, errorType = 'no-scenarios', customMessage = null) {
+    // Get the actual display dimensions
+    const rect = canvas.getBoundingClientRect();
+    
+    // Set canvas size to match container
+    canvas.width = Math.max(rect.width, 600);
+    canvas.height = Math.max(rect.height, 400);
+    
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Set up styling for the error message
+    ctx.save();
+    
+    // Simple light background
+    ctx.fillStyle = 'rgba(248, 249, 250, 0.95)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Calculate center position
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    // Define simple error messages
+    const errorMessages = {
+        'no-scenarios': {
+            title: 'Keine Szenarien ausgewählt',
+            subtitle: 'Für die Übersicht muss mindestens ein Szenario ausgewählt werden'
+        },
+        'no-data': {
+            title: 'Keine Daten verfügbar',
+            subtitle: 'Bitte Parameter eingeben'
+        },
+        'no-scenario-data': {
+            title: 'Szenario nicht berechnet',
+            subtitle: 'Parameter überprüfen'
+        },
+        'calculation-error': {
+            title: 'Berechnungsfehler',
+            subtitle: 'Eingaben überprüfen'
+        }
+    };
+    
+    const message = customMessage || errorMessages[errorType] || errorMessages['no-data'];
+    
+    // Draw main title in red
+    const titleSize = Math.max(18, Math.min(24, canvas.width * 0.035));
+    ctx.font = `bold ${titleSize}px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e74c3c'; // Red color
+    ctx.fillText(message.title, centerX, centerY - 15);
+    
+    // Draw subtitle in lighter red
+    const subtitleSize = Math.max(14, Math.min(16, canvas.width * 0.025));
+    ctx.font = `${subtitleSize}px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif`;
+    ctx.fillStyle = '#c0392b'; // Darker red
+    ctx.fillText(message.subtitle, centerX, centerY + 15);
+    
+    ctx.restore();
 }
 
 function createScenarioPanel(scenario) {
@@ -966,11 +1018,7 @@ function updateComparisonChart() {
     if (selectedScenarios.length === 0) {
         // If no scenarios selected, show a message
         const canvas = document.getElementById('wealthChart');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#7f8c8d';
-        ctx.textAlign = 'center';
-        ctx.fillText('Bitte wählen Sie mindestens ein Szenario aus', canvas.width/2, canvas.height/2);
+        displayChartErrorMessage(canvas, ctx, 'no-scenarios');
         return;
     }
 
@@ -1247,6 +1295,8 @@ function updateContributionsGainsChart() {
     const displayScenario = scenarios.find(s => s.id === selectedContributionsScenario);
     
     if (!displayScenario || !displayScenario.yearlyData || displayScenario.yearlyData.length === 0) {
+        const canvas = document.getElementById('wealthChart');
+        displayChartErrorMessage(canvas, ctx, 'no-scenario-data');
         return;
     }
 
@@ -1965,6 +2015,13 @@ function updateChart(yearlyData) {
         chart.destroy();
     }
 
+    // Check if we have data
+    if (!yearlyData || yearlyData.length === 0) {
+        const canvas = document.getElementById('wealthChart');
+        displayChartErrorMessage(canvas, ctx, 'no-data');
+        return;
+    }
+
     const years = yearlyData.map(d => d.year);
     const nominalValues = yearlyData.map(d => d.capital);
     const realValues = yearlyData.map(d => d.realCapital);
@@ -2224,8 +2281,15 @@ function createIntegratedTimeline() {
 
     // Get accumulation data from active scenario
     const currentActiveScenario = scenarios.find(s => s.id === activeScenario) || scenarios[0];
-    if (!currentActiveScenario || !currentActiveScenario.yearlyData) {
+    if (!currentActiveScenario || !currentActiveScenario.yearlyData || currentActiveScenario.yearlyData.length === 0) {
         console.log('No accumulation data available for integrated timeline');
+        const canvas = document.getElementById('integratedChart');
+        displayChartErrorMessage(canvas, ctx, 'no-scenario-data', {
+            icon: '🔄',
+            title: 'Keine Daten für Lebenszyklus-Ansicht',
+            subtitle: 'Es sind keine Berechnungsdaten für das aktuelle Szenario verfügbar.',
+            action: 'Bitte führen Sie eine Berechnung in der Ansparphase durch.'
+        });
         return;
     }
 
@@ -3514,6 +3578,18 @@ function updateWithdrawalChart(yearlyData) {
         withdrawalChart.destroy();
     }
 
+    // Check if we have data
+    if (!yearlyData || yearlyData.length === 0) {
+        const canvas = document.getElementById('withdrawalChart');
+        displayChartErrorMessage(canvas, ctx, 'no-data', {
+            icon: '💰',
+            title: 'Keine Entnahmedaten verfügbar',
+            subtitle: 'Es sind noch keine Entnahmeberechnungen vorhanden.',
+            action: 'Bitte führen Sie eine Entnahmeberechnung durch.'
+        });
+        return;
+    }
+
     // Get current inflation rate from the slider
     const inflationRate = parseFloat(document.getElementById('withdrawalInflation').value) / 100;
 
@@ -4340,9 +4416,21 @@ function updateBudgetPieChart(fixedExpenses, variableExpenses, remainingBudget) 
         budgetPieChart.destroy();
     }
 
-    // Calculate category totals
+    // Check if we have any budget data
     const fixedTotal = Object.values(fixedExpenses).reduce((sum, val) => sum + val, 0);
     const variableTotal = Object.values(variableExpenses).reduce((sum, val) => sum + val, 0);
+    const totalBudget = fixedTotal + variableTotal + Math.max(0, remainingBudget);
+    
+    if (totalBudget <= 0) {
+        const canvas = document.getElementById('budgetPieChart');
+        displayChartErrorMessage(canvas, ctx, 'no-data', {
+            icon: '💰',
+            title: 'Keine Budgetdaten verfügbar',
+            subtitle: 'Es wurden noch keine Einnahmen oder Ausgaben eingegeben.',
+            action: 'Bitte geben Sie Ihre Einnahmen und Ausgaben ein.'
+        });
+        return;
+    }
     
     // Prepare data for the pie chart
     const chartData = [];
@@ -6783,11 +6871,7 @@ function createLifecycleComparisonChart() {
     
     if (visibleScenarios.length === 0) {
         // Show message when no scenarios are selected
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#7f8c8d';
-        ctx.textAlign = 'center';
-        ctx.fillText('Bitte wählen Sie mindestens ein Szenario aus', canvas.width/2, canvas.height/2);
+        displayChartErrorMessage(canvas, ctx, 'no-scenarios');
         return;
     }
 
@@ -7155,11 +7239,7 @@ function createAccumulationComparisonChart() {
     
     if (visibleScenarios.length === 0) {
         // Show message when no scenarios are selected
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#7f8c8d';
-        ctx.textAlign = 'center';
-        ctx.fillText('Bitte wählen Sie mindestens ein Szenario aus', canvas.width/2, canvas.height/2);
+        displayChartErrorMessage(canvas, ctx, 'no-scenarios');
         return;
     }
 
@@ -7386,11 +7466,7 @@ function createWithdrawalComparisonChart() {
     if (visibleScenarios.length === 0) {
         console.log('No scenarios selected, showing message');
         // Show message when no scenarios are selected
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#7f8c8d';
-        ctx.textAlign = 'center';
-        ctx.fillText('Bitte wählen Sie mindestens ein Szenario aus', canvas.width/2, canvas.height/2);
+        displayChartErrorMessage(canvas, ctx, 'no-scenarios');
         return;
     }
 
@@ -7491,11 +7567,7 @@ function createWithdrawalComparisonChart() {
 
     if (datasets.length === 0) {
         console.log('No datasets available, showing no data message');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#7f8c8d';
-        ctx.textAlign = 'center';
-        ctx.fillText('Keine Entnahmedaten verfügbar', canvas.width/2, canvas.height/2);
+        displayChartErrorMessage(canvas, ctx, 'no-data');
         return;
     }
 
@@ -7694,11 +7766,7 @@ function createMetricsRadarChart() {
     
     if (visibleScenarios.length === 0) {
         // Show message when no scenarios are selected
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#7f8c8d';
-        ctx.textAlign = 'center';
-        ctx.fillText('Bitte wählen Sie mindestens ein Szenario aus', canvas.width/2, canvas.height/2);
+        displayChartErrorMessage(canvas, ctx, 'no-scenarios');
         return;
     }
 
