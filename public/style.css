@@ -5237,3 +5237,58 @@ body * {
     margin-right: 6px;
     font-size: 0.9em;
 }
+
+/* Disclaimer Footer - Kleingedrucktes */
+.disclaimer-footer {
+    margin-top: 50px;
+    padding: 20px 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 1px solid #dee2e6;
+    position: relative;
+}
+
+.disclaimer-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #bdc3c7, transparent);
+}
+
+.kleingedrucktes {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #6c757d;
+    text-align: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.kleingedrucktes strong {
+    color: #495057;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .disclaimer-footer {
+        margin-top: 30px;
+        padding: 15px 0;
+    }
+    
+    .kleingedrucktes {
+        font-size: 0.7rem;
+        padding: 0 15px;
+        line-height: 1.5;
+    }
+}
+
+@media (max-width: 480px) {
+    .kleingedrucktes {
+        font-size: 0.65rem;
+        padding: 0 10px;
+    }
+}
