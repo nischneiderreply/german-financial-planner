@@ -863,7 +863,7 @@ function createScenarioPanel(scenario) {
         <div class="input-group">
             <label>Jährliche Rendite (%)</label>
             <div class="slider-container">
-                <input type="range" id="annualReturn_${scenario.id}" class="slider scenario-slider" min="1" max="15" value="${defaultValues.annualReturn}" step="0.1" data-scenario="${scenario.id}">
+                <input type="range" id="annualReturn_${scenario.id}" class="slider scenario-slider" min="1" max="50" value="${defaultValues.annualReturn}" step="0.1" data-scenario="${scenario.id}">
                 <span class="slider-value" id="annualReturnValue_${scenario.id}">${parseFloat(defaultValues.annualReturn).toFixed(1)}%</span>
             </div>
         </div>
@@ -5886,7 +5886,7 @@ function createComparisonScenarioPanel(scenario) {
                         <div class="input-group">
                             <label>Jährliche Rendite (%)</label>
                             <div class="slider-container">
-                                <input type="range" class="slider comparison-slider" data-param="accumulation.annualReturn" data-scenario="${scenario.id}" min="1" max="15" value="7" step="0.1">
+                                <input type="range" class="slider comparison-slider" data-param="accumulation.annualReturn" data-scenario="${scenario.id}" min="1" max="50" value="7" step="0.1">
                                 <span class="slider-value">7.0%</span>
                             </div>
                         </div>
