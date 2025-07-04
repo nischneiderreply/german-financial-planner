@@ -20,7 +20,7 @@ let budgetData = {
 let scenarios = [
     {
         id: 'A',
-        name: 'A',
+        name: 'Szenario A',
         color: '#3498db',
         inputs: {},
         yearlyData: [],
@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupPhaseToggle();
     setupGermanNumberInputs();
+    setupSavingsModeFunctionality();
     // Initial calculation
     recalculateAll();
     calculateBudget();
@@ -333,7 +334,7 @@ function setupScenarioInputListeners(scenarioId) {
     }
 
     // ETF type radio buttons
-    const etfTypeRadios = document.querySelectorAll('input[name="etfType"]');
+    const etfTypeRadios = document.querySelectorAll(`input[name="etfType-${scenarioId}"]`);
     etfTypeRadios.forEach(radio => {
         radio.addEventListener('change', function() {
             debouncedRecalculateAll();
@@ -443,7 +444,7 @@ function updateScenarioCheckboxes() {
         
         checkboxItem.innerHTML = `
             <div class="scenario-checkbox"></div>
-            <span>Szenario ${scenario.id}</span>
+            <span>${scenario.name}</span>
         `;
         
         checkboxItem.addEventListener('click', function() {
@@ -496,7 +497,7 @@ function updateContributionsScenarioDropdown() {
     scenarios.forEach(scenario => {
         const option = document.createElement('option');
         option.value = scenario.id;
-        option.textContent = `Szenario ${scenario.id}`;
+        option.textContent = scenario.name;
         option.style.color = scenario.color;
         option.style.fontWeight = 'bold';
         if (scenario.id === selectedContributionsScenario) {
@@ -557,7 +558,7 @@ function autoSyncWithdrawalCapital(showNotificationFlag = false) {
             
             // Update sync indicator (always show current scenario)
             if (syncIndicator && syncScenarioName) {
-                syncScenarioName.textContent = `Szenario ${currentActiveScenario.name}`;
+                syncScenarioName.textContent = currentActiveScenario.name;
                 syncIndicator.style.display = 'block';
             }
             
@@ -581,7 +582,7 @@ function autoSyncWithdrawalCapital(showNotificationFlag = false) {
                     
                     showNotification(
                         '🔄 Automatische Synchronisation', 
-                        `Entnahmekapital wurde automatisch auf ${newValue.toLocaleString('de-DE')} € aktualisiert (Szenario ${currentActiveScenario.name})`, 
+                        `Entnahmekapital wurde automatisch auf ${newValue.toLocaleString('de-DE')} € aktualisiert (${currentActiveScenario.name})`, 
                         'info'
                     );
                 }
@@ -609,16 +610,73 @@ function autoSyncWithdrawalCapital(showNotificationFlag = false) {
 function runScenario(scenario) {
     const scenarioId = scenario.id;
     
-    // Get input values for this scenario
-    const monthlySavings = parseGermanNumber(getScenarioValue('monthlySavings', scenarioId));
+    // Determine savings mode
+    const savingsMode = getSavingsMode(scenarioId);
+    
+    // Get common input values for this scenario
     const initialCapital = parseGermanNumber(getScenarioValue('initialCapital', scenarioId));
     const baseSalary = parseGermanNumber(getScenarioValue('baseSalary', scenarioId));
     const annualReturn = parseFloat(getScenarioValue('annualReturn', scenarioId)) / 100;
     const inflationRate = parseFloat(getScenarioValue('inflationRate', scenarioId)) / 100;
     const salaryGrowth = parseFloat(getScenarioValue('salaryGrowth', scenarioId)) / 100;
-    const duration = parseInt(getScenarioValue('duration', scenarioId));
     const salaryToSavings = parseFloat(getScenarioValue('salaryToSavings', scenarioId)) / 100;
     const includeTax = getScenarioToggleValue('taxToggle', scenarioId);
+
+    // Get Teilfreistellung and ETF type for main scenarios
+    const teilfreistellung = getScenarioToggleValue('teilfreistellungToggle', scenarioId);
+    const etfTypeElement = document.querySelector('input[name="etfType"]:checked');
+    const etfType = etfTypeElement ? etfTypeElement.value : 'thesaurierend';
+
+    let results;
+    let monthlySavings = 0;
+    let duration = 0;
+
+    if (savingsMode === 'multi-phase') {
+        // Multi-phase calculation
+        const phases = getMultiPhaseData(scenarioId);
+        
+        if (phases.length > 0) {
+            // Calculate duration from phases
+            duration = Math.max(...phases.map(phase => phase.endYear));
+            
+            // Calculate average monthly savings for backward compatibility
+            let totalContributions = 0;
+            let totalMonths = 0;
+            phases.forEach(phase => {
+                const phaseDuration = phase.endYear - phase.startYear + 1;
+                const phaseMonths = phaseDuration * 12;
+                totalContributions += phaseMonths * phase.monthlySavingsRate;
+                totalMonths += phaseMonths;
+            });
+            monthlySavings = totalMonths > 0 ? totalContributions / totalMonths : 0;
+            
+            // Use multi-phase calculation
+            results = calculateMultiPhaseWealthDevelopment(
+                phases, initialCapital, annualReturn, inflationRate, 
+                salaryGrowth, salaryToSavings, includeTax, baseSalary,
+                teilfreistellung, etfType
+            );
+        } else {
+            // No active phases, use defaults
+            monthlySavings = 0;
+            duration = 25;
+            results = calculateWealthDevelopment(
+                0, initialCapital, annualReturn, inflationRate, 
+                salaryGrowth, duration, salaryToSavings, includeTax, baseSalary,
+                teilfreistellung, etfType
+            );
+        }
+    } else {
+        // Simple single-rate calculation
+        monthlySavings = parseGermanNumber(getScenarioValue('monthlySavings', scenarioId));
+        duration = parseInt(getScenarioValue('duration', scenarioId));
+        
+        results = calculateWealthDevelopment(
+            monthlySavings, initialCapital, annualReturn, inflationRate, 
+            salaryGrowth, duration, salaryToSavings, includeTax, baseSalary,
+            teilfreistellung, etfType
+        );
+    }
 
     // Store inputs in scenario object
     scenario.inputs = {
@@ -630,24 +688,14 @@ function runScenario(scenario) {
         salaryGrowth,
         duration,
         salaryToSavings,
-        includeTax
+        includeTax,
+        savingsMode,
+        phases: savingsMode === 'multi-phase' ? getMultiPhaseData(scenarioId) : null
     };
     
     // Also store convenient aliases for withdrawal phase calculations
     scenario.monthlyContribution = monthlySavings;
     scenario.duration = duration;
-
-    // Get Teilfreistellung and ETF type for main scenarios
-    const teilfreistellung = getScenarioToggleValue('teilfreistellungToggle', scenarioId);
-    const etfTypeElement = document.querySelector('input[name="etfType"]:checked');
-    const etfType = etfTypeElement ? etfTypeElement.value : 'thesaurierend';
-
-    // Calculate wealth development
-    const results = calculateWealthDevelopment(
-        monthlySavings, initialCapital, annualReturn, inflationRate, 
-        salaryGrowth, duration, salaryToSavings, includeTax, baseSalary,
-        teilfreistellung, etfType
-    );
 
     // Store results
     scenario.yearlyData = results.yearlyData;
@@ -682,7 +730,7 @@ function addNewScenario() {
     const newScenarioId = String.fromCharCode(65 + scenarios.length); // A, B, C, D
     const newScenario = {
         id: newScenarioId,
-        name: newScenarioId,
+        name: 'Szenario ' + newScenarioId,
         color: scenarioColors[newScenarioId],
         inputs: {},
         yearlyData: [],
@@ -692,6 +740,10 @@ function addNewScenario() {
     scenarios.push(newScenario);
     createScenarioPanel(newScenario);
     createScenarioTab(newScenario);
+    
+    // Set up savings mode functionality for the new scenario
+    setupSavingsModeForScenario(newScenarioId);
+    
     switchToScenario(newScenarioId);
     // Auto-select new scenario for chart display
     selectedScenariosForChart.add(newScenarioId);
@@ -709,7 +761,7 @@ function createScenarioTab(scenario) {
     const tab = document.createElement('button');
     tab.className = 'scenario-tab';
     tab.dataset.scenario = scenario.id;
-    tab.innerHTML = `📊 Szenario ${scenario.id}`;
+    tab.innerHTML = `📈 ${scenario.name}`;
     
     // Insert before the add button
     tabsContainer.insertBefore(tab, addBtn);
@@ -827,7 +879,7 @@ function createScenarioPanel(scenario) {
     
     panel.innerHTML = `
         <div class="scenario-panel-header">
-            <h3 class="scenario-panel-title">📊 Szenario ${scenario.id}</h3>
+            <h3 class="scenario-panel-title">📊 ${scenario.name}</h3>
             <div class="scenario-actions">
                 <button class="scenario-action-btn" onclick="renameScenario('${scenario.id}')" title="Szenario umbenennen">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -845,9 +897,175 @@ function createScenarioPanel(scenario) {
             </div>
         </div>
 
-        <div class="input-group">
-            <label for="monthlySavings_${scenario.id}">Monatliche Sparrate (€)</label>
-            <input type="text" id="monthlySavings_${scenario.id}" class="input-field scenario-input" value="${defaultValues.monthlySavings}" step="10" data-scenario="${scenario.id}">
+        <!-- Savings Rate Configuration -->
+        <div class="savings-configuration">
+            <div class="savings-mode-toggle" style="margin-bottom: 20px;">
+                <label style="font-weight: 600; margin-bottom: 10px; display: block;">💰 Sparraten-Konfiguration</label>
+                <div class="savings-mode-buttons">
+                    <button type="button" class="savings-mode-btn active" data-mode="simple" data-scenario="${scenario.id}">
+                        <span class="mode-icon">📈</span>
+                        <span class="mode-text">Einfache Sparrate</span>
+                    </button>
+                    <button type="button" class="savings-mode-btn" data-mode="multi-phase" data-scenario="${scenario.id}">
+                        <span class="mode-icon">🎯</span>
+                        <span class="mode-text">Mehrphasig</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Simple Savings Rate (Default) -->
+            <div class="simple-savings-container" data-scenario="${scenario.id}">
+                <div class="input-group">
+                    <label for="monthlySavings_${scenario.id}">Monatliche Sparrate (€)</label>
+                    <input type="text" id="monthlySavings_${scenario.id}" class="input-field scenario-input" value="${defaultValues.monthlySavings}" step="10" data-scenario="${scenario.id}">
+                </div>
+            </div>
+
+            <!-- Multi-Phase Savings Configuration -->
+            <div class="multi-phase-savings-container" data-scenario="${scenario.id}" style="display: none;">
+                <div class="multi-phase-header">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px;">🎯 Mehrphasige Sparplanung</h4>
+                    <p style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.4;">
+                        Definieren Sie bis zu 3 verschiedene Sparphasen mit unterschiedlichen monatlichen Sparraten. 
+                        Perfekt für Lebensphasen wie Berufseinstieg, Karrieremitte und Spitzenverdienst.
+                    </p>
+                </div>
+
+                <div class="phases-container" data-scenario="${scenario.id}">
+                    <!-- Phase 1 (Always active) -->
+                    <div class="savings-phase active" data-phase="1" data-scenario="${scenario.id}">
+                        <div class="phase-header">
+                            <div class="phase-title">
+                                <span class="phase-icon">🌱</span>
+                                <h5>Phase 1: Anfangsphase</h5>
+                                <div class="phase-status-indicator active"></div>
+                            </div>
+                        </div>
+                        <div class="phase-content">
+                            <div class="phase-controls">
+                                <div class="time-range-inputs">
+                                    <div class="input-group time-input">
+                                        <label>Von Jahr</label>
+                                        <input type="number" class="phase-start-year" value="0" min="0" readonly data-phase="1" data-scenario="${scenario.id}">
+                                    </div>
+                                    <div class="input-group time-input">
+                                        <label>Bis Jahr</label>
+                                        <input type="number" class="phase-end-year" value="10" min="1" max="100" data-phase="1" data-scenario="${scenario.id}">
+                                    </div>
+                                    <div class="input-group savings-input">
+                                        <label>Monatliche Sparrate (€)</label>
+                                        <input type="text" class="phase-savings-rate" value="300" data-phase="1" data-scenario="${scenario.id}">
+                                    </div>
+                                </div>
+                                <div class="phase-summary">
+                                    <span class="phase-duration">Dauer: 11 Jahre</span>
+                                    <span class="phase-total">Gesamt: €39.600</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phase 2 -->
+                    <div class="savings-phase" data-phase="2" data-scenario="${scenario.id}">
+                        <div class="phase-header">
+                            <div class="phase-title">
+                                <span class="phase-icon">📈</span>
+                                <h5>Phase 2: Wachstumsphase</h5>
+                                <div class="phase-status-indicator"></div>
+                            </div>
+                            <button type="button" class="phase-toggle-btn" data-phase="2" data-scenario="${scenario.id}">
+                                <span class="toggle-text">Aktivieren</span>
+                            </button>
+                        </div>
+                        <div class="phase-content" style="display: none;">
+                            <div class="phase-controls">
+                                <div class="time-range-inputs">
+                                    <div class="input-group time-input">
+                                        <label>Von Jahr</label>
+                                        <input type="number" class="phase-start-year" value="11" min="1" data-phase="2" data-scenario="${scenario.id}">
+                                    </div>
+                                    <div class="input-group time-input">
+                                        <label>Bis Jahr</label>
+                                        <input type="number" class="phase-end-year" value="25" min="2" max="100" data-phase="2" data-scenario="${scenario.id}">
+                                    </div>
+                                    <div class="input-group savings-input">
+                                        <label>Monatliche Sparrate (€)</label>
+                                        <input type="text" class="phase-savings-rate" value="800" data-phase="2" data-scenario="${scenario.id}">
+                                    </div>
+                                </div>
+                                <div class="phase-summary">
+                                    <span class="phase-duration">Dauer: 15 Jahre</span>
+                                    <span class="phase-total">Gesamt: €144.000</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phase 3 -->
+                    <div class="savings-phase" data-phase="3" data-scenario="${scenario.id}">
+                        <div class="phase-header">
+                            <div class="phase-title">
+                                <span class="phase-icon">🚀</span>
+                                <h5>Phase 3: Spitzenphase</h5>
+                                <div class="phase-status-indicator"></div>
+                            </div>
+                            <button type="button" class="phase-toggle-btn" data-phase="3" data-scenario="${scenario.id}">
+                                <span class="toggle-text">Aktivieren</span>
+                            </button>
+                        </div>
+                        <div class="phase-content" style="display: none;">
+                            <div class="phase-controls">
+                                <div class="time-range-inputs">
+                                    <div class="input-group time-input">
+                                        <label>Von Jahr</label>
+                                        <input type="number" class="phase-start-year" value="26" min="2" data-phase="3" data-scenario="${scenario.id}">
+                                    </div>
+                                    <div class="input-group time-input">
+                                        <label>Bis Jahr</label>
+                                        <input type="number" class="phase-end-year" value="40" min="3" max="100" data-phase="3" data-scenario="${scenario.id}">
+                                    </div>
+                                    <div class="input-group savings-input">
+                                        <label>Monatliche Sparrate (€)</label>
+                                        <input type="text" class="phase-savings-rate" value="1200" data-phase="3" data-scenario="${scenario.id}">
+                                    </div>
+                                </div>
+                                <div class="phase-summary">
+                                    <span class="phase-duration">Dauer: 15 Jahre</span>
+                                    <span class="phase-total">Gesamt: €216.000</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multi-Phase Summary -->
+                <div class="multi-phase-summary">
+                    <div class="summary-header">
+                        <h4>📊 Sparplan-Übersicht</h4>
+                    </div>
+                    <div class="summary-content">
+                        <div class="summary-item">
+                            <span class="summary-label">Aktive Phasen:</span>
+                            <span class="summary-value" id="activePhasesCount_${scenario.id}">1</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Gesamtdauer:</span>
+                            <span class="summary-value" id="totalDuration_${scenario.id}">11 Jahre</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Durchschnittliche Sparrate:</span>
+                            <span class="summary-value" id="averageSavingsRate_${scenario.id}">€300</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Gesamteinzahlungen:</span>
+                            <span class="summary-value" id="totalContributions_${scenario.id}">€39.600</span>
+                        </div>
+                    </div>
+                    <div class="phase-timeline" id="phaseTimeline_${scenario.id}">
+                        <!-- Visual timeline will be generated here -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="input-group">
@@ -856,8 +1074,39 @@ function createScenarioPanel(scenario) {
         </div>
 
         <div class="toggle-container">
-            <label>Deutsche Abgeltungssteuer einbeziehen (26,375%)</label>
+            <label>Deutsche Abgeltungssteuer einbeziehen (25% mit Vorabpauschale)</label>
             <div class="toggle scenario-toggle" id="taxToggle_${scenario.id}" data-scenario="${scenario.id}"></div>
+        </div>
+
+        <!-- ETF Type Selection -->
+        <div class="input-group" style="margin-top: 20px; margin-bottom: 25px;">
+            <label style="margin-bottom: 12px; display: block; font-weight: 600;">ETF-Typ für Steuerberechnung</label>
+            <div class="radio-group" style="margin-top: 10px;">
+                <label class="radio-option">
+                    <input type="radio" name="etfType-${scenario.id}" value="thesaurierend" checked>
+                    <span class="radio-custom"></span>
+                    Thesaurierend (Vorabpauschale)
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="etfType-${scenario.id}" value="ausschuettend">
+                    <span class="radio-custom"></span>
+                    Ausschüttend
+                </label>
+            </div>
+            <small style="color: #7f8c8d; font-size: 0.85rem; margin-top: 12px; display: block; line-height: 1.4;">
+                💡 Thesaurierende ETFs: Niedrigere Steuerlast durch Vorabpauschale. Ausschüttende ETFs: Steuern auf Dividenden.
+            </small>
+        </div>
+
+        <!-- Teilfreistellung Toggle -->
+        <div class="toggle-container" style="margin-top: 25px; margin-bottom: 30px;">
+            <label>Teilfreistellung bei Aktienfonds anwenden (30% steuerfrei)</label>
+            <div class="toggle scenario-toggle active" id="teilfreistellungToggle_${scenario.id}" data-scenario="${scenario.id}"></div>
+        </div>
+        <div style="margin-top: -15px; margin-bottom: 25px;" id="teilfreistellungHelp_${scenario.id}">
+            <small style="color: #7f8c8d; font-size: 0.85rem; display: block; line-height: 1.4;">
+                💡 Bei Aktien-ETFs sind 30% der Erträge steuerfrei. Bei Renten-ETFs oder Mischfonds gelten andere Sätze.
+            </small>
         </div>
 
         <div class="input-group">
@@ -962,7 +1211,7 @@ function updateScenarioResults() {
         
         resultCard.innerHTML = `
             <div class="scenario-result-header">
-                <h3 class="scenario-result-title">📊 Szenario ${scenario.name}</h3>
+                <h3 class="scenario-result-title">📊 ${scenario.name}</h3>
             </div>
             <div class="scenario-result-grid">
                 <div class="scenario-result-item">
@@ -1029,6 +1278,9 @@ function updateComparisonChart() {
     // Create datasets for each selected scenario
     const datasets = [];
     
+    // Define visibleScenarios for tooltip use
+    const visibleScenarios = selectedScenarios;
+    
     selectedScenarios.forEach(scenario => {
         if (!scenario.yearlyData || scenario.yearlyData.length === 0) return;
         
@@ -1051,7 +1303,7 @@ function updateComparisonChart() {
 
         // Add nominal dataset
         datasets.push({
-            label: `Szenario ${scenario.id} (Nominal)`,
+            label: `${scenario.name} (Nominal)`,
             data: nominalData,
             borderColor: scenario.color,
             backgroundColor: nominalGradient,
@@ -1061,14 +1313,14 @@ function updateComparisonChart() {
             pointBackgroundColor: scenario.color,
             pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
-            pointRadius: 0,
+            pointRadius: 2,
             pointHoverRadius: 8,
             scenarioId: scenario.id
         });
 
         // Add real dataset (dashed line)
         datasets.push({
-            label: `Szenario ${scenario.id} (Real)`,
+            label: `${scenario.name} (Real)`,
             data: realData,
             borderColor: scenario.color,
             backgroundColor: 'transparent',
@@ -1079,7 +1331,7 @@ function updateComparisonChart() {
             pointBackgroundColor: scenario.color,
             pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
-            pointRadius: 0,
+            pointRadius: 2,
             pointHoverRadius: 6,
             scenarioId: scenario.id
         });
@@ -1134,78 +1386,28 @@ function updateComparisonChart() {
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     titleColor: '#2c3e50',
                     bodyColor: '#2c3e50',
                     borderColor: '#3498db',
-                    borderWidth: 2,
-                    cornerRadius: 12,
+                    borderWidth: 1,
+                    cornerRadius: 8,
                     displayColors: true,
-                    mode: 'index',
+                    usePointStyle: true,
+                    mode: 'nearest',
                     intersect: false,
-                    titleFont: {
-                        size: 16,
-                        weight: 'bold'
-                    },
-                    bodyFont: {
-                        size: 14
-                    },
-                    padding: 16,
-                    caretSize: 8,
+                    boxPadding: 8,
                     callbacks: {
                         title: function(context) {
                             return 'Jahr ' + context[0].label;
                         },
                         label: function(context) {
                             const scenarioName = context.dataset.label.split(' - ')[0];
-                            const nominalValue = context.parsed.y;
-                            
-                            // Get scenario and calculate real value
-                            const scenarioId = context.dataset.scenarioId;
-                            const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                            const year = context.parsed.x;
-                            
-                            if (scenario) {
-                                const inflationRate = parseFloat(getComparisonScenarioValue(scenarioId, 'accumulation.inflationRate') || '2') / 100;
-                                const realValue = calculateRealValue(nominalValue, inflationRate, year);
-                                
-                                return [
-                                    `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`,
-                                    `💰 Realer Wert: €${realValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`
-                                ];
-                            }
-                            
-                            return `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
+                            const value = context.parsed.y;
+                            return `${scenarioName}: €${value.toLocaleString('de-DE', { 
                                 minimumFractionDigits: 0, 
                                 maximumFractionDigits: 0 
                             })}`;
-                        },
-                        afterBody: function(context) {
-                            const year = parseInt(context[0].label);
-                            const scenarioId = context[0].dataset.scenarioId;
-                            const scenario = scenarios.find(s => s.id === scenarioId);
-                            
-                            if (scenario && scenario.yearlyData && scenario.yearlyData[year]) {
-                                const yearData = scenario.yearlyData[year];
-                                const monthlyContribution = yearData.monthlySavings;
-                                const annualContribution = monthlyContribution * 12;
-                                const gains = yearData.capital - yearData.totalInvested;
-                                
-                                return [
-                                    '',
-                                    `Szenario ${scenarioId} Details:`,
-                                    'Jährliche Einzahlung: €' + annualContribution.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                                    'Kumulierte Gewinne: €' + gains.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                                    'Kaufkraftverlust: €' + (yearData.capital - yearData.realCapital).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                ];
-                            }
-                            return [];
                         }
                     }
                 }
@@ -1269,7 +1471,12 @@ function updateComparisonChart() {
             },
             interaction: {
                 intersect: false,
-                mode: 'index'
+                mode: 'nearest'
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: false,
+                animationDuration: 200
             },
             elements: {
                 line: {
@@ -1333,7 +1540,7 @@ function updateContributionsGainsChart() {
                     fill: 'origin',
                     tension: 0.4,
                     borderWidth: 2,
-                    pointRadius: 0,
+                    pointRadius: 2,
                     pointHoverRadius: 6
                 },
                 {
@@ -1344,7 +1551,7 @@ function updateContributionsGainsChart() {
                     fill: '-1', // Fill to previous dataset
                     tension: 0.4,
                     borderWidth: 2,
-                    pointRadius: 0,
+                    pointRadius: 2,
                     pointHoverRadius: 6
                 },
                 {
@@ -1356,7 +1563,7 @@ function updateContributionsGainsChart() {
                     tension: 0.4,
                     borderWidth: 2,
                     borderDash: [8, 4],
-                    pointRadius: 0,
+                    pointRadius: 2,
                     pointHoverRadius: 6
                 }
             ]
@@ -1375,7 +1582,7 @@ function updateContributionsGainsChart() {
             plugins: {
                 title: {
                     display: true,
-                    text: `Vermögensentwicklung: Einzahlungen vs. Kursgewinne (Szenario ${displayScenario.id})`,
+                    text: `Vermögensentwicklung: Einzahlungen vs. Kursgewinne (${displayScenario.name})`,
                     font: {
                         size: 18,
                         weight: 'bold',
@@ -1404,66 +1611,28 @@ function updateContributionsGainsChart() {
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     titleColor: '#2c3e50',
                     bodyColor: '#2c3e50',
                     borderColor: '#3498db',
-                    borderWidth: 2,
-                    cornerRadius: 12,
+                    borderWidth: 1,
+                    cornerRadius: 8,
                     displayColors: true,
-                    mode: 'index',
+                    usePointStyle: true,
+                    mode: 'nearest',
                     intersect: false,
-                    titleFont: {
-                        size: 16,
-                        weight: 'bold'
-                    },
-                    bodyFont: {
-                        size: 14
-                    },
-                    padding: 16,
-                    caretSize: 8,
+                    boxPadding: 8,
                     callbacks: {
                         title: function(context) {
                             return 'Jahr ' + context[0].label;
                         },
-                        beforeBody: function(context) {
-                            const year = parseInt(context[0].label);
-                            const yearData = displayScenario.yearlyData[year];
-                            if (yearData) {
-                                const totalCapital = yearData.capital;
-                                const contributions = yearData.totalInvested;
-                                const gains = totalCapital - contributions;
-                                const gainsPercentage = contributions > 0 ? (gains / totalCapital * 100) : 0;
-                                const contributionsPercentage = 100 - gainsPercentage;
-                                
-                                return [
-                                    `Gesamtvermögen: €${totalCapital.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                                    '',
-                                    `💰 Ihre Einzahlungen: ${contributionsPercentage.toFixed(1)}%`,
-                                    `📈 Kursgewinne: ${gainsPercentage.toFixed(1)}%`
-                                ];
-                            }
-                            return [];
-                        },
                         label: function(context) {
                             const datasetLabel = context.dataset.label;
                             const value = context.parsed.y;
-                            
-                            if (datasetLabel === 'Kursgewinne') {
-                                // Show only the gains portion for the gains dataset
-                                const year = parseInt(context.label);
-                                const yearData = displayScenario.yearlyData[year];
-                                const gains = yearData ? Math.max(0, yearData.capital - yearData.totalInvested) : 0;
-                                return datasetLabel + ': €' + gains.toLocaleString('de-DE', { 
-                                    minimumFractionDigits: 2, 
-                                    maximumFractionDigits: 2 
-                                });
-                            }
-                            
-                            return datasetLabel + ': €' + value.toLocaleString('de-DE', { 
-                                minimumFractionDigits: 2, 
-                                maximumFractionDigits: 2 
-                            });
+                            return `${datasetLabel}: €${value.toLocaleString('de-DE', { 
+                                minimumFractionDigits: 0, 
+                                maximumFractionDigits: 0 
+                            })}`;
                         }
                     }
                 }
@@ -1528,11 +1697,20 @@ function updateContributionsGainsChart() {
             },
             interaction: {
                 intersect: false,
-                mode: 'index'
+                mode: 'nearest'
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: false,
+                animationDuration: 200
             },
             elements: {
                 line: {
                     capBezierPoints: false
+                },
+                point: {
+                    hoverRadius: 8,
+                    hitRadius: 15
                 }
             },
             animation: {
@@ -1685,9 +1863,9 @@ function calculateGermanETFTax(startCapital, endCapital, annualReturn, year, tei
         const estimatedDistribution = (endCapital - startCapital) * 0.02; // Assume 2% distribution yield
         taxableAmount = Math.max(0, estimatedDistribution) * (1 - teilfreistellungRate);
         
-        console.log(`Year ${year}: Distributing ETF - Estimated Distribution: €${estimatedDistribution.toFixed(2)}`);
+        console.log(`Year ${year}: Distributing ETF - Estimated Distribution: €${estimatedDistribution.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
         console.log(`Teilfreistellung Rate: ${teilfreistellungRate * 100}%`);
-        console.log(`Taxable after Teilfreistellung: €${taxableAmount.toFixed(2)}`);
+        console.log(`Taxable after Teilfreistellung: €${taxableAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     }
     
     // Apply Sparerpauschbetrag (tax-free allowance) - annual allowance
@@ -1700,10 +1878,10 @@ function calculateGermanETFTax(startCapital, endCapital, annualReturn, year, tei
     // Calculate final tax
     const tax = taxableAfterAllowance * ABGELTUNGSSTEUER_RATE;
     
-    console.log(`Remaining Allowance: €${remainingAllowance.toFixed(2)}`);
-    console.log(`Allowance Used This Year: €${allowanceUsedThisYear.toFixed(2)}`);
-    console.log(`Taxable After Allowance: €${taxableAfterAllowance.toFixed(2)}`);
-    console.log(`Final Tax (${ABGELTUNGSSTEUER_RATE * 100}%): €${tax.toFixed(2)}`);
+    console.log(`Remaining Allowance: €${remainingAllowance.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    console.log(`Allowance Used This Year: €${allowanceUsedThisYear.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    console.log(`Taxable After Allowance: €${taxableAfterAllowance.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    console.log(`Final Tax (${ABGELTUNGSSTEUER_RATE * 100}%): €${tax.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     console.log('---');
     
     return tax;
@@ -1788,6 +1966,118 @@ function calculateGermanNetSalary(grossSalary, taxClass = 1, children = 0, age =
     const netSalary = grossSalary - totalDeductions;
 
     return netSalary;
+}
+
+// Multi-Phase Wealth Development Calculator
+function calculateMultiPhaseWealthDevelopment(phases, initialCapital, annualReturn, inflationRate, salaryGrowth, salaryToSavings, includeTax, baseSalary = 60000, teilfreistellung = false, etfType = 'thesaurierend') {
+    console.log('Starting multi-phase wealth calculation with phases:', phases);
+    
+    const monthlyReturn = annualReturn / 12;
+    
+    let capital = initialCapital;
+    let currentSalary = baseSalary;
+    let totalInvested = initialCapital;
+    let cumulativeTaxesPaid = 0;
+    
+    const yearlyData = [{
+        year: 0,
+        capital: capital,
+        realCapital: capital,
+        totalInvested: totalInvested,
+        monthlySavings: 0,
+        yearlySalary: currentSalary,
+        netSalary: calculateGermanNetSalary(currentSalary),
+        taxesPaid: 0,
+        cumulativeTaxesPaid: 0,
+        currentPhase: null
+    }];
+
+    // Determine the maximum duration from all phases
+    const maxDuration = Math.max(...phases.map(phase => phase.endYear));
+    
+    // Reset tax allowance tracking for new calculation
+    usedSparerpauschbetrag = 0;
+
+    for (let year = 1; year <= maxDuration; year++) {
+        const startOfYearCapital = capital;
+        let yearlyTaxesPaid = 0;
+        
+        // Find which phase applies for this year
+        const currentPhase = phases.find(phase => year >= phase.startYear && year <= phase.endYear);
+        const currentMonthlySavings = currentPhase ? currentPhase.monthlySavingsRate : 0;
+        
+        console.log(`Year ${year}: Phase: ${currentPhase ? `${currentPhase.startYear}-${currentPhase.endYear}` : 'none'}, Monthly savings: €${currentMonthlySavings}`);
+        
+        for (let month = 1; month <= 12; month++) {
+            // Apply monthly return
+            const monthlyGain = capital * monthlyReturn;
+            capital += monthlyGain;
+            
+            // Add monthly savings if in an active phase
+            if (currentMonthlySavings > 0) {
+                capital += currentMonthlySavings;
+                totalInvested += currentMonthlySavings;
+            }
+        }
+        
+        // Apply German ETF taxes annually
+        if (includeTax && capital > startOfYearCapital) {
+            const annualTax = calculateGermanETFTax(startOfYearCapital, capital, annualReturn, year, teilfreistellung, etfType);
+            capital -= annualTax;
+            yearlyTaxesPaid = annualTax;
+            cumulativeTaxesPaid += annualTax;
+        }
+        
+        // Annual salary increase affects savings rate (only if we have an active phase)
+        if (year < maxDuration && currentMonthlySavings > 0) {
+            const previousNetSalary = calculateGermanNetSalary(currentSalary);
+            const annualSalaryIncrease = currentSalary * salaryGrowth;
+            currentSalary += annualSalaryIncrease;
+            const newNetSalary = calculateGermanNetSalary(currentSalary);
+            const netSalaryIncrease = newNetSalary - previousNetSalary;
+            
+            // Note: In multi-phase, the savings rate is fixed per phase, 
+            // but we track salary growth for completeness
+        }
+        
+        // Calculate real value (inflation-adjusted)
+        const realCapital = capital / Math.pow(1 + inflationRate, year);
+        
+        yearlyData.push({
+            year: year,
+            capital: capital,
+            realCapital: realCapital,
+            totalInvested: totalInvested,
+            monthlySavings: currentMonthlySavings,
+            yearlySalary: currentSalary,
+            netSalary: calculateGermanNetSalary(currentSalary),
+            taxesPaid: yearlyTaxesPaid,
+            cumulativeTaxesPaid: cumulativeTaxesPaid,
+            currentPhase: currentPhase ? `Phase ${phases.indexOf(currentPhase) + 1}` : 'Keine Phase'
+        });
+    }
+
+    const finalNominal = capital;
+    const finalReal = capital / Math.pow(1 + inflationRate, maxDuration);
+    const totalReturn = finalNominal - totalInvested;
+
+    console.log('Multi-phase calculation completed:', {
+        finalNominal,
+        finalReal,
+        totalInvested,
+        totalReturn,
+        totalTaxesPaid: cumulativeTaxesPaid
+    });
+
+    return {
+        finalNominal,
+        finalReal,
+        totalInvested,
+        totalReturn,
+        totalTaxesPaid: cumulativeTaxesPaid,
+        yearlyData,
+        phases: phases // Include phase information for chart visualization
+    };
 }
 
 function updateScenarioSalaryAnalysis(scenarioId, baseSalary, salaryGrowthRate) {
@@ -1884,7 +2174,7 @@ function copyScenario(scenarioId) {
     if (sourceScenario && newScenario) {
         showNotification(
             'Szenario kopiert', 
-            `📊 Szenario ${sourceScenario.name} wurde erfolgreich als ${newScenario.name} kopiert.`, 
+            `📊 ${sourceScenario.name} wurde erfolgreich als ${newScenario.name} kopiert.`, 
             'success'
         );
     }
@@ -1935,7 +2225,7 @@ function renameScenario(scenarioId) {
     }
     
     const currentName = scenario.name;
-    const newName = prompt(`Neuer Name für Szenario ${scenarioId}:`, currentName);
+    const newName = prompt('Szenario umbenennen:', currentName);
     
     if (newName === null) {
         // User cancelled
@@ -1956,15 +2246,15 @@ function renameScenario(scenarioId) {
     scenario.name = newName.trim();
     
     // Update panel title
-    const panelTitle = document.querySelector(`[data-scenario="${scenarioId}"] .scenario-panel-title`);
+    const panelTitle = document.querySelector(`.scenario-panel[data-scenario="${scenarioId}"] .scenario-panel-title`);
     if (panelTitle) {
-        panelTitle.textContent = `📊 Szenario ${scenario.id}`;
+        panelTitle.textContent = `📊 ${scenario.name}`;
     }
     
     // Update tab name
-    const tab = document.querySelector(`[data-scenario="${scenarioId}"].scenario-tab`);
+    const tab = document.querySelector(`.scenario-tab[data-scenario="${scenarioId}"]`);
     if (tab) {
-        tab.innerHTML = `📊 Szenario ${scenario.id}`;
+        tab.innerHTML = `📈 ${scenario.name}`;
     }
     
     // Update all UI elements that display scenario names
@@ -1985,7 +2275,7 @@ function renameScenario(scenarioId) {
         autoSyncWithdrawalCapital(false);
     }
     
-    showNotification('Szenario umbenannt', `Szenario ${scenarioId} wurde erfolgreich in "${scenario.name}" umbenannt.`, 'success');
+    showNotification('Szenario umbenannt', `"${currentName}" wurde erfolgreich in "${scenario.name}" umbenannt.`, 'success');
 }
 
 function updateScenarioSelector() {
@@ -2001,7 +2291,7 @@ function updateScenarioSelector() {
             const finalValue = scenario.yearlyData[scenario.yearlyData.length - 1].capital;
             const option = document.createElement('option');
             option.value = scenario.id;
-            option.textContent = `Szenario ${scenario.name} (€${Math.round(finalValue).toLocaleString('de-DE')})`;
+            option.textContent = `${scenario.name} (€${Math.round(finalValue).toLocaleString('de-DE')})`;
             option.style.color = scenario.color;
             selector.appendChild(option);
         }
@@ -2144,8 +2434,8 @@ function updateChart(yearlyData) {
                     borderWidth: 2,
                     cornerRadius: 12,
                     displayColors: true,
-                    mode: 'index',
-                    intersect: false,
+                    mode: 'nearest',
+                    intersect: true,
                     titleFont: {
                         size: 16,
                         weight: 'bold'
@@ -2256,8 +2546,13 @@ function updateChart(yearlyData) {
                 }
             },
             interaction: {
-                intersect: false,
-                mode: 'index'
+                intersect: true,
+                mode: 'nearest'
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: true,
+                animationDuration: 200
             },
             elements: {
                 line: {
@@ -2583,12 +2878,12 @@ function createIntegratedTimeline() {
                 }
             },
             interaction: {
-                intersect: false,
+                intersect: true,
                 mode: 'nearest'
             },
             hover: {
                 mode: 'nearest',
-                intersect: false,
+                intersect: true,
                 animationDuration: 200,
                 axis: 'x'
             },
@@ -2815,6 +3110,382 @@ function setupPhaseToggle() {
             accumulationChart.style.display = 'block';
         }
     }
+}
+
+// Savings Mode Functionality - Multi-phase vs Simple
+function setupSavingsModeFunctionality() {
+    // Initialize savings mode functionality for all scenarios
+    scenarios.forEach(scenario => {
+        setupSavingsModeForScenario(scenario.id);
+    });
+}
+
+function setupSavingsModeForScenario(scenarioId) {
+    // Set up savings mode toggle buttons
+    const savingsModeButtons = document.querySelectorAll(`.savings-mode-btn[data-scenario="${scenarioId}"]`);
+    savingsModeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const mode = this.dataset.mode;
+            switchSavingsMode(scenarioId, mode);
+        });
+    });
+
+    // Set up phase toggle buttons for enabling/disabling phases 2 and 3
+    const phaseToggleButtons = document.querySelectorAll(`.phase-toggle-btn[data-scenario="${scenarioId}"]`);
+    phaseToggleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const phase = parseInt(this.dataset.phase);
+            togglePhase(scenarioId, phase);
+        });
+    });
+
+    // Set up phase input listeners
+    setupPhaseInputListeners(scenarioId);
+    
+    // Initialize phase summaries
+    updatePhaseSummaries(scenarioId);
+    updateMultiPhaseSummary(scenarioId);
+}
+
+function switchSavingsMode(scenarioId, mode) {
+    // Update button states
+    const savingsModeButtons = document.querySelectorAll(`.savings-mode-btn[data-scenario="${scenarioId}"]`);
+    savingsModeButtons.forEach(button => {
+        button.classList.remove('active');
+        if (button.dataset.mode === mode) {
+            button.classList.add('active');
+        }
+    });
+
+    // Show/hide appropriate containers
+    const simpleContainer = document.querySelector(`.simple-savings-container[data-scenario="${scenarioId}"]`);
+    const multiPhaseContainer = document.querySelector(`.multi-phase-savings-container[data-scenario="${scenarioId}"]`);
+
+    if (mode === 'simple') {
+        if (simpleContainer) simpleContainer.style.display = 'block';
+        if (multiPhaseContainer) multiPhaseContainer.style.display = 'none';
+    } else if (mode === 'multi-phase') {
+        if (simpleContainer) simpleContainer.style.display = 'none';
+        if (multiPhaseContainer) multiPhaseContainer.style.display = 'block';
+        
+        // Update multi-phase summary when switching to multi-phase mode
+        updateMultiPhaseSummary(scenarioId);
+        generatePhaseTimeline(scenarioId);
+    }
+
+    // Trigger recalculation
+    debouncedRecalculateAll();
+}
+
+function togglePhase(scenarioId, phaseNumber) {
+    const phaseElement = document.querySelector(`.savings-phase[data-phase="${phaseNumber}"][data-scenario="${scenarioId}"]`);
+    const toggleButton = document.querySelector(`.phase-toggle-btn[data-phase="${phaseNumber}"][data-scenario="${scenarioId}"]`);
+    const phaseContent = phaseElement.querySelector('.phase-content');
+    const phaseStatusIndicator = phaseElement.querySelector('.phase-status-indicator');
+    const toggleText = toggleButton.querySelector('.toggle-text');
+
+    if (phaseElement.classList.contains('active')) {
+        // Deactivate phase
+        phaseElement.classList.remove('active');
+        phaseContent.style.display = 'none';
+        phaseStatusIndicator.classList.remove('active');
+        toggleText.textContent = 'Aktivieren';
+        toggleButton.classList.remove('active');
+    } else {
+        // Activate phase
+        phaseElement.classList.add('active');
+        phaseContent.style.display = 'block';
+        phaseStatusIndicator.classList.add('active');
+        toggleText.textContent = 'Deaktivieren';
+        toggleButton.classList.add('active');
+        
+        // Validate phase time ranges when activating
+        validatePhaseTimeRanges(scenarioId);
+    }
+
+    // Update summaries
+    updatePhaseSummaries(scenarioId);
+    updateMultiPhaseSummary(scenarioId);
+    generatePhaseTimeline(scenarioId);
+    
+    // Trigger recalculation
+    debouncedRecalculateAll();
+}
+
+function setupPhaseInputListeners(scenarioId) {
+    // Set up listeners for all phase inputs
+    for (let phase = 1; phase <= 3; phase++) {
+        const startYearInput = document.querySelector(`.phase-start-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        const endYearInput = document.querySelector(`.phase-end-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        const savingsRateInput = document.querySelector(`.phase-savings-rate[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+
+        if (startYearInput) {
+            startYearInput.addEventListener('input', () => {
+                validatePhaseTimeRanges(scenarioId);
+                updatePhaseSummaries(scenarioId);
+                updateMultiPhaseSummary(scenarioId);
+                generatePhaseTimeline(scenarioId);
+                debouncedRecalculateAll();
+            });
+            
+            // Improve keyboard input behavior - select all text when focused
+            startYearInput.addEventListener('focus', function() {
+                this.select();
+            });
+            
+            startYearInput.addEventListener('click', function() {
+                this.select();
+            });
+        }
+
+        if (endYearInput) {
+            endYearInput.addEventListener('input', () => {
+                validatePhaseTimeRanges(scenarioId);
+                updatePhaseSummaries(scenarioId);
+                updateMultiPhaseSummary(scenarioId);
+                generatePhaseTimeline(scenarioId);
+                debouncedRecalculateAll();
+            });
+            
+            // Improve keyboard input behavior - select all text when focused
+            endYearInput.addEventListener('focus', function() {
+                this.select();
+            });
+            
+            endYearInput.addEventListener('click', function() {
+                this.select();
+            });
+        }
+
+        if (savingsRateInput) {
+            savingsRateInput.addEventListener('input', () => {
+                updatePhaseSummaries(scenarioId);
+                updateMultiPhaseSummary(scenarioId);
+                debouncedRecalculateAll();
+            });
+        }
+    }
+}
+
+function validatePhaseTimeRanges(scenarioId) {
+    // Ensure phases don't overlap and are in logical order
+    const phases = [];
+    
+    for (let phase = 1; phase <= 3; phase++) {
+        const phaseElement = document.querySelector(`.savings-phase[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        const startYearInput = document.querySelector(`.phase-start-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        const endYearInput = document.querySelector(`.phase-end-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        
+        if (phaseElement && phaseElement.classList.contains('active')) {
+            const startYear = parseInt(startYearInput.value) || 0;
+            const endYear = parseInt(endYearInput.value) || 0;
+            
+            phases.push({
+                phase: phase,
+                startYear: startYear,
+                endYear: endYear,
+                startInput: startYearInput,
+                endInput: endYearInput
+            });
+        }
+    }
+
+    // Sort phases by start year
+    phases.sort((a, b) => a.startYear - b.startYear);
+
+    // Validate each phase
+    for (let i = 0; i < phases.length; i++) {
+        const currentPhase = phases[i];
+        
+        // Ensure values don't exceed 100 years
+        if (currentPhase.startYear > 100) {
+            currentPhase.startInput.value = 100;
+            currentPhase.startYear = 100;
+        }
+        if (currentPhase.endYear > 100) {
+            currentPhase.endInput.value = 100;
+            currentPhase.endYear = 100;
+        }
+        
+        // Ensure end year is after start year
+        if (currentPhase.endYear <= currentPhase.startYear) {
+            currentPhase.endInput.value = Math.min(currentPhase.startYear + 1, 100);
+        }
+        
+        // Ensure no overlap with next phase
+        if (i < phases.length - 1) {
+            const nextPhase = phases[i + 1];
+            if (currentPhase.endYear >= nextPhase.startYear) {
+                nextPhase.startInput.value = Math.min(currentPhase.endYear + 1, 100);
+            }
+        }
+    }
+}
+
+function updatePhaseSummaries(scenarioId) {
+    for (let phase = 1; phase <= 3; phase++) {
+        const phaseElement = document.querySelector(`.savings-phase[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        
+        if (phaseElement) {
+            const startYear = parseInt(document.querySelector(`.phase-start-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const endYear = parseInt(document.querySelector(`.phase-end-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const savingsRate = parseGermanNumber(document.querySelector(`.phase-savings-rate[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            
+            const duration = Math.max(0, endYear - startYear + 1);
+            const totalContributions = duration * 12 * savingsRate;
+            
+            const durationElement = phaseElement.querySelector('.phase-duration');
+            const totalElement = phaseElement.querySelector('.phase-total');
+            
+            if (durationElement) {
+                durationElement.textContent = `Dauer: ${duration} Jahre`;
+            }
+            if (totalElement) {
+                totalElement.textContent = `Gesamt: ${formatCurrency(totalContributions)}`;
+            }
+        }
+    }
+}
+
+function updateMultiPhaseSummary(scenarioId) {
+    const activePhasesCountElement = document.getElementById(`activePhasesCount_${scenarioId}`);
+    const totalDurationElement = document.getElementById(`totalDuration_${scenarioId}`);
+    const averageSavingsRateElement = document.getElementById(`averageSavingsRate_${scenarioId}`);
+    const totalContributionsElement = document.getElementById(`totalContributions_${scenarioId}`);
+
+    let activePhases = 0;
+    let minStartYear = Infinity;
+    let maxEndYear = -Infinity;
+    let totalContributions = 0;
+    let weightedSavingsSum = 0;
+    let totalMonths = 0;
+
+    for (let phase = 1; phase <= 3; phase++) {
+        const phaseElement = document.querySelector(`.savings-phase[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        
+        if (phaseElement && phaseElement.classList.contains('active')) {
+            activePhases++;
+            
+            const startYear = parseInt(document.querySelector(`.phase-start-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const endYear = parseInt(document.querySelector(`.phase-end-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const savingsRate = parseGermanNumber(document.querySelector(`.phase-savings-rate[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            
+            minStartYear = Math.min(minStartYear, startYear);
+            maxEndYear = Math.max(maxEndYear, endYear);
+            
+            const phaseDuration = Math.max(0, endYear - startYear + 1);
+            const phaseMonths = phaseDuration * 12;
+            const phaseContributions = phaseMonths * savingsRate;
+            
+            totalContributions += phaseContributions;
+            weightedSavingsSum += savingsRate * phaseMonths;
+            totalMonths += phaseMonths;
+        }
+    }
+
+    const totalDuration = activePhases > 0 ? maxEndYear - minStartYear + 1 : 0;
+    const averageSavingsRate = totalMonths > 0 ? weightedSavingsSum / totalMonths : 0;
+
+    if (activePhasesCountElement) activePhasesCountElement.textContent = activePhases.toString();
+    if (totalDurationElement) totalDurationElement.textContent = `${totalDuration} Jahre`;
+    if (averageSavingsRateElement) averageSavingsRateElement.textContent = formatCurrency(averageSavingsRate);
+    if (totalContributionsElement) totalContributionsElement.textContent = formatCurrency(totalContributions);
+}
+
+function generatePhaseTimeline(scenarioId) {
+    const timelineElement = document.getElementById(`phaseTimeline_${scenarioId}`);
+    if (!timelineElement) return;
+
+    // Get active phases
+    const activePhases = [];
+    let minStartYear = Infinity;
+    let maxEndYear = -Infinity;
+
+    for (let phase = 1; phase <= 3; phase++) {
+        const phaseElement = document.querySelector(`.savings-phase[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        
+        if (phaseElement && phaseElement.classList.contains('active')) {
+            const startYear = parseInt(document.querySelector(`.phase-start-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const endYear = parseInt(document.querySelector(`.phase-end-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const savingsRate = parseGermanNumber(document.querySelector(`.phase-savings-rate[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            
+            activePhases.push({
+                phase: phase,
+                startYear: startYear,
+                endYear: endYear,
+                savingsRate: savingsRate
+            });
+            
+            minStartYear = Math.min(minStartYear, startYear);
+            maxEndYear = Math.max(maxEndYear, endYear);
+        }
+    }
+
+    if (activePhases.length === 0) {
+        timelineElement.innerHTML = '<div style="text-align: center; color: #7f8c8d; padding: 20px;">Keine aktiven Phasen</div>';
+        return;
+    }
+
+    const totalDuration = maxEndYear - minStartYear + 1;
+    
+    // Create timeline HTML
+    let timelineHTML = '<div class="timeline-bar">';
+    
+    activePhases.forEach(phaseData => {
+        const phaseStartPercent = ((phaseData.startYear - minStartYear) / totalDuration) * 100;
+        const phaseWidthPercent = ((phaseData.endYear - phaseData.startYear + 1) / totalDuration) * 100;
+        
+        timelineHTML += `
+            <div class="timeline-segment phase-${phaseData.phase}" 
+                 style="left: ${phaseStartPercent}%; width: ${phaseWidthPercent}%;"
+                 title="Phase ${phaseData.phase}: Jahr ${phaseData.startYear}-${phaseData.endYear}, ${formatCurrency(phaseData.savingsRate)}/Monat">
+            </div>
+        `;
+    });
+    
+    timelineHTML += '</div>';
+    
+    // Add legend
+    timelineHTML += '<div class="timeline-legend">';
+    activePhases.forEach(phaseData => {
+        const phaseName = ['', 'Anfangsphase', 'Wachstumsphase', 'Spitzenphase'][phaseData.phase];
+        timelineHTML += `
+            <div class="legend-item">
+                <div class="legend-color phase-${phaseData.phase}"></div>
+                <span class="legend-text">${phaseName} (${phaseData.startYear}-${phaseData.endYear})</span>
+            </div>
+        `;
+    });
+    timelineHTML += '</div>';
+    
+    timelineElement.innerHTML = timelineHTML;
+}
+
+function getSavingsMode(scenarioId) {
+    const activeModeButton = document.querySelector(`.savings-mode-btn.active[data-scenario="${scenarioId}"]`);
+    return activeModeButton ? activeModeButton.dataset.mode : 'simple';
+}
+
+function getMultiPhaseData(scenarioId) {
+    const phases = [];
+    
+    for (let phase = 1; phase <= 3; phase++) {
+        const phaseElement = document.querySelector(`.savings-phase[data-phase="${phase}"][data-scenario="${scenarioId}"]`);
+        
+        if (phaseElement && phaseElement.classList.contains('active')) {
+            const startYear = parseInt(document.querySelector(`.phase-start-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const endYear = parseInt(document.querySelector(`.phase-end-year[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            const savingsRate = parseGermanNumber(document.querySelector(`.phase-savings-rate[data-phase="${phase}"][data-scenario="${scenarioId}"]`).value) || 0;
+            
+            phases.push({
+                startYear: startYear,
+                endYear: endYear,
+                monthlySavingsRate: savingsRate
+            });
+        }
+    }
+    
+    return phases;
 }
 
 function setupWithdrawalListeners() {
@@ -3733,25 +4404,16 @@ function updateWithdrawalChart(yearlyData) {
             plugins: {
                 tooltip: {
                     callbacks: {
+                        title: function(context) {
+                            return `Jahr ${context[0].parsed.x}`;
+                        },
                         label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            // Properly format negative values
+                            const scenarioName = context.dataset.label.split(' - ')[0];
                             const value = context.parsed.y;
-                            if (value < 0) {
-                                label += '-€' + Math.abs(value).toLocaleString('de-DE', { 
-                                    minimumFractionDigits: 2, 
-                                    maximumFractionDigits: 2 
-                                });
-                            } else {
-                                label += '€' + value.toLocaleString('de-DE', { 
-                                    minimumFractionDigits: 2, 
-                                    maximumFractionDigits: 2 
-                                });
-                            }
-                            return label;
+                            return `${scenarioName}: €${value.toLocaleString('de-DE', { 
+                                minimumFractionDigits: 0, 
+                                maximumFractionDigits: 0 
+                            })}`;
                         }
                     }
                 }
@@ -5611,15 +6273,15 @@ function setupComparisonScenarioTabs() {
 let comparisonScenarios = [
     {
         id: 'A',
-        name: 'Optimistisch',
+        name: 'Szenario A',
         color: '#3498db',
-        emoji: '🎯'
+        emoji: '📈'
     },
     {
         id: 'B', 
-        name: 'Konservativ',
+        name: 'Szenario B',
         color: '#27ae60', 
-        emoji: '🛡️'
+        emoji: '📈'
     }
 ];
 
@@ -5682,12 +6344,12 @@ function addNewComparisonScenario() {
     };
     
     const scenarioEmojis = {
-        'A': '🎯',
-        'B': '🛡️',
-        'C': '💥',
-        'D': '⚡',
-        'E': '🚀',
-        'F': '🏆'
+        'A': '📈',
+        'B': '📈',
+        'C': '📈',
+        'D': '📈',
+        'E': '📈',
+        'F': '📈'
     };
 
     const newComparisonScenario = {
@@ -6213,8 +6875,8 @@ function duplicateComparisonScenario(scenarioId) {
         'D': '#f39c12', 'E': '#9b59b6', 'F': '#34495e'
     };
     const scenarioEmojis = {
-        'A': '🎯', 'B': '🛡️', 'C': '💥',
-        'D': '⚡', 'E': '🚀', 'F': '🏆'
+        'A': '📈', 'B': '📈', 'C': '📈',
+        'D': '📈', 'E': '📈', 'F': '📈'
     };
     
     // Create a smart copy name that respects the 17 character limit
@@ -6790,12 +7452,12 @@ function updateScenarioVisibilityControls() {
     };
     
     const scenarioEmojis = {
-        'A': '🎯',
-        'B': '🛡️',
-        'C': '💥',
-        'D': '⚡',
-        'E': '🚀',
-        'F': '🏆'
+        'A': '📈',
+        'B': '📈',
+        'C': '📈',
+        'D': '📈',
+        'E': '📈',
+        'F': '📈'
     };
     
     // Create controls for each available scenario
@@ -6954,7 +7616,7 @@ function createLifecycleComparisonChart() {
             fill: true,
             tension: 0.4,
             borderWidth: 3,
-            pointRadius: 0,
+            pointRadius: 2,
             pointHoverRadius: 8,
             pointBackgroundColor: color,
             pointBorderColor: '#ffffff',
@@ -6974,7 +7636,7 @@ function createLifecycleComparisonChart() {
                 tension: 0.4,
                 borderWidth: 3,
                 borderDash: [8, 4],
-                pointRadius: 0,
+                pointRadius: 2,
                 pointHoverRadius: 8,
                 pointBackgroundColor: color,
                 pointBorderColor: '#ffffff',
@@ -7014,112 +7676,26 @@ function createLifecycleComparisonChart() {
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     titleColor: '#2c3e50',
                     bodyColor: '#2c3e50',
                     borderColor: '#3498db',
-                    borderWidth: 2,
-                    cornerRadius: 12,
+                    borderWidth: 1,
+                    cornerRadius: 8,
                     displayColors: true,
-                    boxPadding: 6,
                     usePointStyle: true,
+                    boxPadding: 8,
                     callbacks: {
                         title: function(context) {
-                            const year = context[0].parsed.x;
-                            const phase = context[0].dataset.phase;
-                            return `Jahr ${year} (${phase === 'accumulation' ? 'Ansparphase' : 'Entnahmephase'})`;
+                            return `Jahr ${context[0].parsed.x}`;
                         },
                         label: function(context) {
                             const scenarioName = context.dataset.label.split(' - ')[0];
-                            const nominalValue = context.parsed.y;
-                            const phase = context.dataset.phase;
-                            
-                            // Get scenario and calculate real value
-                            const scenarioId = context.dataset.scenarioId;
-                            const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                            const year = context.parsed.x;
-                            
-                            if (scenario) {
-                                // Use appropriate inflation rate based on phase
-                                let inflationRate, realValue;
-                                if (phase === 'accumulation') {
-                                    inflationRate = parseFloat(getComparisonScenarioValue(scenarioId, 'accumulation.inflationRate') || '2') / 100;
-                                    realValue = calculateRealValue(nominalValue, inflationRate, year);
-                                } else {
-                                    // For withdrawal phase, calculate from start of retirement
-                                    inflationRate = parseFloat(getComparisonScenarioValue(scenarioId, 'withdrawal.inflationRate') || '2') / 100;
-                                    const accumulationDuration = parseInt(getComparisonScenarioValue(scenarioId, 'accumulation.duration') || '25');
-                                    const withdrawalYear = year - accumulationDuration;
-                                    realValue = calculateRealValue(nominalValue, inflationRate, withdrawalYear);
-                                }
-                                
-                                const phaseEmoji = phase === 'accumulation' ? '📈' : '🏖️';
-                                const phaseText = phase === 'accumulation' ? 'Ansparphase' : 'Entnahmephase';
-                                
-                                return [
-                                    `${phaseEmoji} ${scenarioName} (${phaseText}): €${nominalValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`,
-                                    `💰 Realer Wert: €${realValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`
-                                ];
-                            }
-                            
-                            return `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
+                            const value = context.parsed.y;
+                            return `${scenarioName}: €${value.toLocaleString('de-DE', { 
                                 minimumFractionDigits: 0, 
                                 maximumFractionDigits: 0 
                             })}`;
-                        },
-                        afterBody: function(context) {
-                            if (context.length > 0) {
-                                const phase = context[0].dataset.phase;
-                                const year = context[0].parsed.x;
-                                const scenarioId = context[0].dataset.scenarioId;
-                                const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                                
-                                if (scenario) {
-                                    if (phase === 'accumulation') {
-                                        // Show accumulation phase details
-                                        if (scenario.results && scenario.results.yearlyData) {
-                                            const yearData = scenario.results.yearlyData.find(d => d.year === year);
-                                            if (yearData) {
-                                                const gains = yearData.capital - yearData.totalInvested;
-                                                const returnPercentage = yearData.totalInvested > 0 ? ((yearData.capital / yearData.totalInvested - 1) * 100) : 0;
-                                                return [
-                                                    '',
-                                                    `📊 ${scenario.name} - Ansparphase:`,
-                                                    `💰 Eingezahlt: €${formatGermanNumber(yearData.totalInvested, 0)}`,
-                                                    `📈 Gewinn: €${formatGermanNumber(gains, 0)}`,
-                                                    `📊 Rendite: ${returnPercentage.toFixed(1)}%`
-                                                ];
-                                            }
-                                        }
-                                        return ['', '📈 Portfolio wächst durch Einzahlungen und Rendite'];
-                                    } else {
-                                        // Show withdrawal phase details
-                                        if (scenario.results && scenario.results.withdrawalResults && scenario.results.withdrawalResults.yearlyData) {
-                                            const accumulationDuration = parseInt(getComparisonScenarioValue(scenarioId, 'accumulation.duration') || '25');
-                                            const withdrawalYear = year - accumulationDuration;
-                                            const yearData = scenario.results.withdrawalResults.yearlyData[withdrawalYear];
-                                            if (yearData) {
-                                                const grossWithdrawal = yearData.grossWithdrawal || 0;
-                                                const monthlyWithdrawal = grossWithdrawal / 12;
-                                                return [
-                                                    '',
-                                                    `📊 ${scenario.name} - Entnahmephase:`,
-                                                    `💰 Jährliche Entnahme: €${formatGermanNumber(grossWithdrawal, 0)}`,
-                                                    `📅 Monatliche Rente: €${formatGermanNumber(monthlyWithdrawal, 0)}`
-                                                ];
-                                            }
-                                        }
-                                        return ['', '🏖️ Portfolio wird für monatliche Rente verwendet'];
-                                    }
-                                }
-                            }
-                            return [];
                         }
                     }
                 }
@@ -7354,69 +7930,26 @@ function createAccumulationComparisonChart() {
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     titleColor: '#2c3e50',
                     bodyColor: '#2c3e50',
                     borderColor: '#3498db',
-                    borderWidth: 2,
-                    cornerRadius: 12,
+                    borderWidth: 1,
+                    cornerRadius: 8,
                     displayColors: true,
-                    boxPadding: 6,
+                    usePointStyle: true,
+                    boxPadding: 8,
                     callbacks: {
                         title: function(context) {
                             return `Jahr ${context[0].parsed.x}`;
                         },
                         label: function(context) {
                             const scenarioName = context.dataset.label;
-                            const nominalValue = context.parsed.y;
-                            
-                            // Get scenario and calculate real value
-                            const scenarioId = context.dataset.scenarioId;
-                            const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                            const year = context.parsed.x;
-                            
-                            if (scenario) {
-                                const inflationRate = parseFloat(getComparisonScenarioValue(scenarioId, 'accumulation.inflationRate') || '2') / 100;
-                                const realValue = calculateRealValue(nominalValue, inflationRate, year);
-                                
-                                return [
-                                    `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`,
-                                    `💰 Realer Wert: €${realValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`
-                                ];
-                            }
-                            
-                            return `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
+                            const value = context.parsed.y;
+                            return `${scenarioName}: €${value.toLocaleString('de-DE', { 
                                 minimumFractionDigits: 0, 
                                 maximumFractionDigits: 0 
                             })}`;
-                        },
-                        afterBody: function(context) {
-                            if (context.length > 0) {
-                                const year = context[0].parsed.x;
-                                const scenarioId = context[0].dataset.scenarioId;
-                                const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                                if (scenario && scenario.results.yearlyData) {
-                                    const yearData = scenario.results.yearlyData.find(d => d.year === year);
-                                    if (yearData) {
-                                        const gains = yearData.capital - yearData.totalInvested;
-                                        const returnPercentage = yearData.totalInvested > 0 ? ((yearData.capital / yearData.totalInvested - 1) * 100) : 0;
-                                        return [
-                                            '',
-                                            `📊 ${scenario.name}:`,
-                                            `💰 Eingezahlt: €${formatGermanNumber(yearData.totalInvested, 0)}`,
-                                            `📈 Gewinn: €${formatGermanNumber(gains, 0)}`,
-                                            `📊 Rendite: ${returnPercentage.toFixed(1)}%`
-                                        ];
-                                    }
-                                }
-                                return [];
-                            }
                         }
                     }
                 }
@@ -7643,82 +8176,26 @@ function createWithdrawalComparisonChart() {
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
                     titleColor: '#2c3e50',
                     bodyColor: '#2c3e50',
                     borderColor: '#3498db',
-                    borderWidth: 2,
-                    cornerRadius: 12,
+                    borderWidth: 1,
+                    cornerRadius: 8,
                     displayColors: true,
-                    boxPadding: 6,
+                    usePointStyle: true,
+                    boxPadding: 8,
                     callbacks: {
                         title: function(context) {
-                            return `Jahr ${context[0].parsed.x + 1} der Entnahme`;
+                            return `Jahr ${context[0].parsed.x + 1}`;
                         },
                         label: function(context) {
                             const scenarioName = context.dataset.label;
-                            const nominalValue = context.parsed.y;
-                            
-                            // Get scenario and calculate real value
-                            const scenarioId = context.dataset.scenarioId;
-                            const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                            const year = context.parsed.x;
-                            
-                            if (scenario) {
-                                // Use withdrawal inflation rate for withdrawal phase
-                                const inflationRate = parseFloat(getComparisonScenarioValue(scenarioId, 'withdrawal.inflationRate') || '2') / 100;
-                                const realValue = calculateRealValue(nominalValue, inflationRate, year + 1);
-                                
-                                return [
-                                    `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`,
-                                    `💰 Realer Wert: €${realValue.toLocaleString('de-DE', { 
-                                        minimumFractionDigits: 0, 
-                                        maximumFractionDigits: 0 
-                                    })}`
-                                ];
-                            }
-                            
-                            return `${scenarioName}: €${nominalValue.toLocaleString('de-DE', { 
+                            const value = context.parsed.y;
+                            return `${scenarioName}: €${value.toLocaleString('de-DE', { 
                                 minimumFractionDigits: 0, 
                                 maximumFractionDigits: 0 
                             })}`;
-                        },
-                        afterBody: function(context) {
-                            if (context.length > 0) {
-                                const year = context[0].parsed.x;
-                                const scenarioId = context[0].dataset.scenarioId;
-                                const scenario = visibleScenarios.find(s => s.id === scenarioId);
-                                if (scenario && scenario.results.withdrawalResults && scenario.results.withdrawalResults.yearlyData) {
-                                    const yearData = scenario.results.withdrawalResults.yearlyData[year];
-                                    if (yearData) {
-                                        const grossWithdrawal = yearData.grossWithdrawal || 0;
-                                        const monthlyWithdrawal = grossWithdrawal / 12;
-                                        const totalWithdrawn = (year + 1) * grossWithdrawal;
-                                        
-                                                                // Calculate real values for withdrawal amounts
-                        const inflationRate = parseFloat(getComparisonScenarioValue(scenarioId, 'withdrawal.inflationRate') || '2') / 100;
-                        // The withdrawal amount is already inflation-adjusted, so the real purchasing power
-                        // should be the base amount (first year's amount in today's purchasing power)
-                        // year is 0-based index, but withdrawal starts at year 1, so we use year+1
-                        const withdrawalYear = year + 1;
-                        const baseAnnualWithdrawal = yearData.grossWithdrawal / Math.pow(1 + inflationRate, withdrawalYear - 1);
-                        const realMonthlyWithdrawal = baseAnnualWithdrawal / 12;
-                                        
-                                        return [
-                                            '',
-                                            `📊 ${scenario.name}:`,
-                                            `💰 Jährliche Entnahme: €${formatGermanNumber(grossWithdrawal, 0)}`,
-                                            `📅 Monatliche Entnahme: €${formatGermanNumber(monthlyWithdrawal, 0)}`,
-                                            `🛒 Reale Kaufkraft: €${formatGermanNumber(realMonthlyWithdrawal, 0)}/Monat`,
-                                            `📊 Gesamt entnommen: €${formatGermanNumber(totalWithdrawn, 0)}`
-                                        ];
-                                    }
-                                }
-                                return [];
-                            }
                         }
                     }
                 }
