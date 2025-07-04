@@ -371,20 +371,192 @@
                             <div class="scenario-panel-header">
                                 <h3 class="scenario-panel-title">📊 Szenario A</h3>
                                 <div class="scenario-actions">
+                                    <button class="scenario-action-btn" onclick="renameScenario('A')" title="Szenario umbenennen">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                        </svg>
+                                        Umbenennen
+                                    </button>
                                     <button class="scenario-action-btn" onclick="copyScenario('A')" title="Szenario kopieren">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                                         </svg>
                                         Kopieren
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- Manual Input Fields -->
-                            <div class="input-group">
-                                <label for="monthlySavings_A">Monatliche Sparrate (€)</label>
-                                <input type="text" id="monthlySavings_A" class="input-field scenario-input" value="500" step="10" data-scenario="A">
+                            <!-- Savings Rate Configuration -->
+                            <div class="savings-configuration">
+                                <div class="savings-mode-toggle" style="margin-bottom: 20px;">
+                                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">💰 Sparraten-Konfiguration</label>
+                                    <div class="savings-mode-buttons">
+                                        <button type="button" class="savings-mode-btn active" data-mode="simple" data-scenario="A">
+                                            <span class="mode-icon">📈</span>
+                                            <span class="mode-text">Einfache Sparrate</span>
+                                        </button>
+                                        <button type="button" class="savings-mode-btn" data-mode="multi-phase" data-scenario="A">
+                                            <span class="mode-icon">🎯</span>
+                                            <span class="mode-text">Mehrphasig</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Simple Savings Rate (Default) -->
+                                <div class="simple-savings-container" data-scenario="A">
+                                    <div class="input-group">
+                                        <label for="monthlySavings_A">Monatliche Sparrate (€)</label>
+                                        <input type="text" id="monthlySavings_A" class="input-field scenario-input" value="500" step="10" data-scenario="A">
+                                    </div>
+                                </div>
+
+                                <!-- Multi-Phase Savings Configuration -->
+                                <div class="multi-phase-savings-container" data-scenario="A" style="display: none;">
+                                    <div class="multi-phase-header">
+                                        <h4 style="color: #2c3e50; margin-bottom: 15px;">🎯 Mehrphasige Sparplanung</h4>
+                                        <p style="color: #7f8c8d; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.4;">
+                                            Definieren Sie bis zu 3 verschiedene Sparphasen mit unterschiedlichen monatlichen Sparraten. 
+                                            Perfekt für Lebensphasen wie Berufseinstieg, Karrieremitte und Spitzenverdienst.
+                                        </p>
+                                    </div>
+
+                                    <div class="phases-container" data-scenario="A">
+                                        <!-- Phase 1 (Always active) -->
+                                        <div class="savings-phase active" data-phase="1" data-scenario="A">
+                                            <div class="phase-header">
+                                                <div class="phase-title">
+                                                    <span class="phase-icon">🌱</span>
+                                                    <h5>Phase 1: Anfangsphase</h5>
+                                                    <div class="phase-status-indicator active"></div>
+                                                </div>
+                                            </div>
+                                            <div class="phase-content">
+                                                <div class="phase-controls">
+                                                    <div class="time-range-inputs">
+                                                        <div class="input-group time-input">
+                                                            <label>Von Jahr</label>
+                                                            <input type="number" class="phase-start-year" value="0" min="0" readonly data-phase="1" data-scenario="A">
+                                                        </div>
+                                                        <div class="input-group time-input">
+                                                            <label>Bis Jahr</label>
+                                                            <input type="number" class="phase-end-year" value="10" min="1" max="100" data-phase="1" data-scenario="A">
+                                                        </div>
+                                                        <div class="input-group savings-input">
+                                                            <label>Monatliche Sparrate (€)</label>
+                                                            <input type="text" class="phase-savings-rate" value="300" data-phase="1" data-scenario="A">
+                                                        </div>
+                                                    </div>
+                                                    <div class="phase-summary">
+                                                        <span class="phase-duration">Dauer: 11 Jahre</span>
+                                                        <span class="phase-total">Gesamt: €39.600</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Phase 2 -->
+                                        <div class="savings-phase" data-phase="2" data-scenario="A">
+                                            <div class="phase-header">
+                                                <div class="phase-title">
+                                                    <span class="phase-icon">📈</span>
+                                                    <h5>Phase 2: Wachstumsphase</h5>
+                                                    <div class="phase-status-indicator"></div>
+                                                </div>
+                                                <button type="button" class="phase-toggle-btn" data-phase="2" data-scenario="A">
+                                                    <span class="toggle-text">Aktivieren</span>
+                                                </button>
+                                            </div>
+                                            <div class="phase-content" style="display: none;">
+                                                <div class="phase-controls">
+                                                    <div class="time-range-inputs">
+                                                        <div class="input-group time-input">
+                                                            <label>Von Jahr</label>
+                                                            <input type="number" class="phase-start-year" value="11" min="1" data-phase="2" data-scenario="A">
+                                                        </div>
+                                                        <div class="input-group time-input">
+                                                            <label>Bis Jahr</label>
+                                                            <input type="number" class="phase-end-year" value="25" min="2" max="100" data-phase="2" data-scenario="A">
+                                                        </div>
+                                                        <div class="input-group savings-input">
+                                                            <label>Monatliche Sparrate (€)</label>
+                                                            <input type="text" class="phase-savings-rate" value="800" data-phase="2" data-scenario="A">
+                                                        </div>
+                                                    </div>
+                                                    <div class="phase-summary">
+                                                        <span class="phase-duration">Dauer: 15 Jahre</span>
+                                                        <span class="phase-total">Gesamt: €144.000</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Phase 3 -->
+                                        <div class="savings-phase" data-phase="3" data-scenario="A">
+                                            <div class="phase-header">
+                                                <div class="phase-title">
+                                                    <span class="phase-icon">🚀</span>
+                                                    <h5>Phase 3: Spitzenphase</h5>
+                                                    <div class="phase-status-indicator"></div>
+                                                </div>
+                                                <button type="button" class="phase-toggle-btn" data-phase="3" data-scenario="A">
+                                                    <span class="toggle-text">Aktivieren</span>
+                                                </button>
+                                            </div>
+                                            <div class="phase-content" style="display: none;">
+                                                <div class="phase-controls">
+                                                    <div class="time-range-inputs">
+                                                        <div class="input-group time-input">
+                                                            <label>Von Jahr</label>
+                                                            <input type="number" class="phase-start-year" value="26" min="2" data-phase="3" data-scenario="A">
+                                                        </div>
+                                                        <div class="input-group time-input">
+                                                            <label>Bis Jahr</label>
+                                                            <input type="number" class="phase-end-year" value="40" min="3" max="100" data-phase="3" data-scenario="A">
+                                                        </div>
+                                                        <div class="input-group savings-input">
+                                                            <label>Monatliche Sparrate (€)</label>
+                                                            <input type="text" class="phase-savings-rate" value="1200" data-phase="3" data-scenario="A">
+                                                        </div>
+                                                    </div>
+                                                    <div class="phase-summary">
+                                                        <span class="phase-duration">Dauer: 15 Jahre</span>
+                                                        <span class="phase-total">Gesamt: €216.000</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Multi-Phase Summary -->
+                                    <div class="multi-phase-summary">
+                                        <div class="summary-header">
+                                            <h4>📊 Sparplan-Übersicht</h4>
+                                        </div>
+                                        <div class="summary-content">
+                                            <div class="summary-item">
+                                                <span class="summary-label">Aktive Phasen:</span>
+                                                <span class="summary-value" id="activePhasesCount_A">1</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Gesamtdauer:</span>
+                                                <span class="summary-value" id="totalDuration_A">11 Jahre</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Durchschnittliche Sparrate:</span>
+                                                <span class="summary-value" id="averageSavingsRate_A">€300</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Gesamteinzahlungen:</span>
+                                                <span class="summary-value" id="totalContributions_A">€39.600</span>
+                                            </div>
+                                        </div>
+                                        <div class="phase-timeline" id="phaseTimeline_A">
+                                            <!-- Visual timeline will be generated here -->
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="input-group">
