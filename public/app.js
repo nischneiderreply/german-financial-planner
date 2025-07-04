@@ -624,8 +624,7 @@ function runScenario(scenario) {
 
     // Get Teilfreistellung and ETF type for main scenarios
     const teilfreistellung = getScenarioToggleValue('teilfreistellungToggle', scenarioId);
-    const etfTypeElement = document.querySelector('input[name="etfType"]:checked');
-    const etfType = etfTypeElement ? etfTypeElement.value : 'thesaurierend';
+    const etfType = getScenarioETFType(scenarioId);
 
     let results;
     let monthlySavings = 0;
@@ -2004,7 +2003,7 @@ function calculateMultiPhaseWealthDevelopment(phases, initialCapital, annualRetu
         
         // Find which phase applies for this year
         const currentPhase = phases.find(phase => year >= phase.startYear && year <= phase.endYear);
-        const currentMonthlySavings = currentPhase ? currentPhase.monthlySavingsRate : 0;
+        let currentMonthlySavings = currentPhase ? currentPhase.monthlySavingsRate : 0;
         
         console.log(`Year ${year}: Phase: ${currentPhase ? `${currentPhase.startYear}-${currentPhase.endYear}` : 'none'}, Monthly savings: €${currentMonthlySavings}`);
         
@@ -2028,16 +2027,36 @@ function calculateMultiPhaseWealthDevelopment(phases, initialCapital, annualRetu
             cumulativeTaxesPaid += annualTax;
         }
         
-        // Annual salary increase affects savings rate (only if we have an active phase)
-        if (year < maxDuration && currentMonthlySavings > 0) {
+        // Annual salary increase affects savings rate (apply to all active phases)
+        if (year < maxDuration) {
             const previousNetSalary = calculateGermanNetSalary(currentSalary);
             const annualSalaryIncrease = currentSalary * salaryGrowth;
             currentSalary += annualSalaryIncrease;
             const newNetSalary = calculateGermanNetSalary(currentSalary);
             const netSalaryIncrease = newNetSalary - previousNetSalary;
             
-            // Note: In multi-phase, the savings rate is fixed per phase, 
-            // but we track salary growth for completeness
+            // Apply percentage of NET salary increase to monthly savings
+            const monthlySalaryIncrease = (netSalaryIncrease / 12) * salaryToSavings;
+            
+            // Update phase savings rates proportionally for the current year
+            if (monthlySalaryIncrease > 0) {
+                console.log(`Year ${year}: Salary increased by €${monthlySalaryIncrease.toFixed(2)}/month`);
+                
+                // Update the phases array to reflect the salary growth increase
+                for (let i = 0; i < phases.length; i++) {
+                    // Update phases that are active from current year onwards
+                    if (phases[i].endYear >= year) {
+                        phases[i].monthlySavingsRate += monthlySalaryIncrease;
+                        console.log(`Updated phase ${i+1} (${phases[i].startYear}-${phases[i].endYear}): €${phases[i].monthlySavingsRate.toFixed(2)}/month`);
+                    }
+                }
+                
+                // Update current monthly savings if we're in an active phase
+                if (currentPhase) {
+                    currentMonthlySavings += monthlySalaryIncrease;
+                    console.log(`Updated current monthly savings: €${currentMonthlySavings.toFixed(2)}/month`);
+                }
+            }
         }
         
         // Calculate real value (inflation-adjusted)
