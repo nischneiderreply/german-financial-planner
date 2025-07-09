@@ -489,3 +489,11 @@ This engine ensures the portfolio depletes to approximately €0 over the specif
 -   `convertToMonthly()`
 -   `showNotification()`
 -   `escapeHtml()`
+
+## TODP's
+- [ ] Implement realistic "Glide Path" withdrawl strategy with adjusting years and percantage
+- [ ] Make the scenario-comparison cards (on the right) move down with scrolling so I see everytime the final amount when I change parameters further below on the page
+- [x] Implement saving scenarios on the "Ansparphase" and "Entnahmephase" page so I can load other/past scenarios
+    - [x] The loading of multiple scenarios is not quite right
+    - [x] Fix the values (and name) that gets displayed for the profiles for each scenario (are the default ones) to the actual values for the stored scenario.
+- [ ] Fix Mehrphasig graph
