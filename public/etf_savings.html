@@ -358,6 +358,14 @@
                 <div class="controls-section">
                     <h2 class="section-title">Investitionsparameter</h2>
 
+                    <!-- Ansparphase Scenario Controls -->
+                    <div class="scenario-controls">
+                        <button class="scenario-button" id="saveAnsparphaseScenario">💾 Szenario speichern</button>
+                        <button class="scenario-button" id="loadAnsparphaseScenario">📂 Szenario laden</button>
+                        <button class="scenario-button" id="manageAnsparphaseScenarios">🗂️ Szenarien verwalten</button>
+                        <button class="scenario-button" id="resetAnsparphaseScenario">🔄 Zurücksetzen</button>
+                    </div>
+
                     <!-- Scenario Tabs -->
                     <div class="scenario-tabs" id="scenarioTabs">
                         <button class="scenario-tab active" data-scenario="A">📈 Szenario A</button>
@@ -733,6 +741,14 @@
             <!-- Withdrawal Section -->
             <div class="withdrawal-section" id="withdrawalSection" style="display: none;">
                 <h2 class="section-title">Entnahmephase Konfiguration</h2>
+                
+                <!-- Entnahmephase Scenario Controls -->
+                <div class="scenario-controls">
+                    <button class="scenario-button" id="saveEntnahmephaseScenario">💾 Szenario speichern</button>
+                    <button class="scenario-button" id="loadEntnahmephaseScenario">📂 Szenario laden</button>
+                    <button class="scenario-button" id="manageEntnahmephaseScenarios">🗂️ Szenarien verwalten</button>
+                    <button class="scenario-button" id="resetEntnahmephaseScenario">🔄 Zurücksetzen</button>
+                </div>
                 
                 <div class="withdrawal-grid">
                     <!-- Withdrawal Parameters -->
@@ -1861,6 +1877,149 @@
             </div>
 
 
+        </div>
+    </div>
+
+    <!-- Ansparphase Scenario Modals -->
+    <!-- Save Ansparphase Scenario Modal -->
+    <div id="saveAnsparphaseScenarioModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h2 class="profile-modal-title">💾 Ansparphase-Szenario speichern</h2>
+                <span class="profile-close" id="closeSaveAnsparphaseScenarioModal">&times;</span>
+            </div>
+            <div class="save-profile-form">
+                <div class="form-group">
+                    <label for="ansparphaseScenarioName" class="form-label">Szenario-Name</label>
+                    <input type="text" id="ansparphaseScenarioName" class="form-input" placeholder="z.B. Konservative Ansparphase" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="ansparphaseScenarioDescription" class="form-label">Beschreibung (optional)</label>
+                    <textarea id="ansparphaseScenarioDescription" class="form-textarea" placeholder="Beschreibung der Ansparphase-Konfiguration..."></textarea>
+                </div>
+                <div class="info-box">
+                    <h4>📊 Szenario-Vorschau</h4>
+                    <div class="profile-preview" id="ansparphaseScenarioPreview">
+                        <!-- Preview will be populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="action-btn cancel-btn" id="cancelSaveAnsparphaseScenario">Abbrechen</button>
+                    <button class="action-btn save-btn" id="confirmSaveAnsparphaseScenario" disabled>Speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Ansparphase Scenario Modal -->
+    <div id="loadAnsparphaseScenarioModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h2 class="profile-modal-title">📂 Ansparphase-Szenario laden</h2>
+                <span class="profile-close" id="closeLoadAnsparphaseScenarioModal">&times;</span>
+            </div>
+            <div class="load-profile-content">
+                <div class="info-box">
+                    <h4>📋 Verfügbare Ansparphase-Szenarien</h4>
+                    <p>Wählen Sie ein oder mehrere gespeicherte Szenarien aus um sie zu laden.</p>
+                    <div style="margin-top: 10px;">
+                        <button class="action-btn secondary-btn" onclick="selectAllScenariosForLoad()" style="margin-right: 10px; padding: 5px 10px; font-size: 0.8rem;">✅ Alle auswählen</button>
+                        <button class="action-btn secondary-btn" onclick="clearAllScenariosForLoad()" style="padding: 5px 10px; font-size: 0.8rem;">❌ Auswahl löschen</button>
+                    </div>
+                </div>
+                <div class="profile-list" id="loadAnsparphaseScenarioList">
+                    <!-- Scenarios will be populated by JavaScript -->
+                </div>
+                <div class="info-box" id="loadScenarioPreviewContainer" style="display: none;">
+                    <h4>📊 Szenario-Vorschau</h4>
+                    <div id="loadScenarioPreview">
+                        <!-- Preview will be populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="action-btn cancel-btn" id="cancelLoadAnsparphaseScenario">Abbrechen</button>
+                    <button class="action-btn save-btn" id="confirmLoadAnsparphaseScenario" disabled>Laden</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Ansparphase Scenarios Modal -->
+    <div id="manageAnsparphaseScenarioModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h2 class="profile-modal-title">🗂️ Ansparphase-Szenarien verwalten</h2>
+                <span class="profile-close" id="closeManageAnsparphaseScenarioModal">&times;</span>
+            </div>
+            <div class="profile-list" id="manageAnsparphaseScenarioList">
+                <!-- Scenarios will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Entnahmephase Scenario Modals -->
+    <!-- Save Entnahmephase Scenario Modal -->
+    <div id="saveEntnahmephaseScenarioModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h2 class="profile-modal-title">💾 Entnahmephase-Szenario speichern</h2>
+                <span class="profile-close" id="closeSaveEntnahmephaseScenarioModal">&times;</span>
+            </div>
+            <div class="save-profile-form">
+                <div class="form-group">
+                    <label for="entnahmephaseScenarioName" class="form-label">Szenario-Name</label>
+                    <input type="text" id="entnahmephaseScenarioName" class="form-input" placeholder="z.B. Konservative Entnahme" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="entnahmephaseScenarioDescription" class="form-label">Beschreibung (optional)</label>
+                    <textarea id="entnahmephaseScenarioDescription" class="form-textarea" placeholder="Beschreibung der Entnahmephase-Konfiguration..."></textarea>
+                </div>
+                <div class="info-box">
+                    <h4>📊 Szenario-Vorschau</h4>
+                    <div class="profile-preview" id="entnahmephaseScenarioPreview">
+                        <!-- Preview will be populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="action-btn cancel-btn" id="cancelSaveEntnahmephaseScenario">Abbrechen</button>
+                    <button class="action-btn save-btn" id="confirmSaveEntnahmephaseScenario" disabled>Speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Entnahmephase Scenario Modal -->
+    <div id="loadEntnahmephaseScenarioModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h2 class="profile-modal-title">📂 Entnahmephase-Szenario laden</h2>
+                <span class="profile-close" id="closeLoadEntnahmephaseScenarioModal">&times;</span>
+            </div>
+            <div class="load-profile-content">
+                <div class="info-box">
+                    <h4>📋 Verfügbare Entnahmephase-Szenarien</h4>
+                    <p>Wählen Sie ein gespeichertes Szenario aus um es zu laden.</p>
+                </div>
+                <div class="profile-list" id="loadEntnahmephaseScenarioList">
+                    <!-- Scenarios will be populated by JavaScript -->
+                </div>
+                <div class="modal-actions">
+                    <button class="action-btn cancel-btn" id="cancelLoadEntnahmephaseScenario">Abbrechen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Entnahmephase Scenarios Modal -->
+    <div id="manageEntnahmephaseScenarioModal" class="profile-modal">
+        <div class="profile-modal-content">
+            <div class="profile-modal-header">
+                <h2 class="profile-modal-title">🗂️ Entnahmephase-Szenarien verwalten</h2>
+                <span class="profile-close" id="closeManageEntnahmephaseScenarioModal">&times;</span>
+            </div>
+            <div class="profile-list" id="manageEntnahmephaseScenarioList">
+                <!-- Scenarios will be populated by JavaScript -->
+            </div>
         </div>
     </div>
 
